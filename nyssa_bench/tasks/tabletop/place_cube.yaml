@@ -1,0 +1,22 @@
+task_id: place_cube
+engine: maniskill
+robot: panda
+scene: tabletop
+description: Move a cube into a marked goal region.
+objects:
+  - name: target_cube
+    type: cube
+    randomized_pose: true
+  - name: goal_region
+    type: marker
+success:
+  object_inside: goal_region
+  max_time_seconds: 35
+  max_collisions: 2
+  max_steps: 12
+randomization:
+  lighting: true
+  object_pose: true
+  camera_pose: true
+metrics: [success_rate, completion_time, collision_count, path_efficiency, wrong_object_rate]
+failure_labels: [missed_target, bad_grasp, object_slip, wrong_object]

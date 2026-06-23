@@ -1,0 +1,7 @@
+robot_id: panda
+description: Franka Panda manipulator used by the v0.1 manipulation suites.
+end_effector: parallel_gripper
+supported_engines:
+  - maniskill
+  - mujoco
+  - dummy

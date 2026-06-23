@@ -1,0 +1,17 @@
+task_id: pull_lever
+engine: maniskill
+robot: panda
+scene: control_panel
+description: Pull a lever through its activation range.
+objects:
+  - name: lever
+    type: articulated
+success:
+  joint_angle_min: 55
+  max_time_seconds: 35
+  max_steps: 11
+randomization:
+  lever_pose: true
+  stiffness_range: [0.2, 1.2]
+metrics: [success_rate, completion_time, collision_count, grasp_success_rate]
+failure_labels: [bad_grasp, unstable_contact, joint_limit_failure]

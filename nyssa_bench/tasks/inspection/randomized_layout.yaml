@@ -1,0 +1,20 @@
+task_id: randomized_layout
+engine: maniskill
+robot: panda
+scene: stress_warehouse
+description: Randomize object, bin, shelf, and camera layout together.
+objects:
+  - name: target_object
+    type: box
+  - name: target_bin
+    type: container
+success:
+  object_inside: target_bin
+  max_time_seconds: 70
+  max_steps: 18
+randomization:
+  object_pose: true
+  camera_pose: true
+  layout: true
+metrics: [success_rate, completion_time, out_of_distribution_failure_rate]
+failure_labels: [out_of_distribution_layout, planner_stuck, missed_target]

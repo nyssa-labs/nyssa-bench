@@ -1,0 +1,16 @@
+task_id: latency_injection
+engine: maniskill
+robot: panda
+scene: stress_tabletop
+description: Inject observation and action latency during evaluation.
+objects:
+  - name: target_object
+    type: cube
+success:
+  object_lifted: target_object
+  max_time_seconds: 45
+  max_steps: 14
+randomization:
+  latency_ms: [50, 250]
+metrics: [success_rate, completion_time, recovery_success_rate, safety_violation_rate]
+failure_labels: [latency_failure, collision, planner_stuck]

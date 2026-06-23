@@ -1,0 +1,18 @@
+task_id: object_occlusion
+engine: maniskill
+robot: panda
+scene: stress_tabletop
+description: Evaluate failures when the target is partially occluded.
+objects:
+  - name: target_object
+    type: cube
+  - name: occluder
+    type: box
+success:
+  object_lifted: target_object
+  max_time_seconds: 45
+  max_steps: 14
+randomization:
+  occlusion: true
+metrics: [success_rate, completion_time, wrong_object_rate, out_of_distribution_failure_rate]
+failure_labels: [occlusion_failure, wrong_object, bad_grasp]

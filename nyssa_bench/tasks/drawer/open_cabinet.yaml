@@ -1,0 +1,17 @@
+task_id: open_cabinet
+engine: maniskill
+robot: panda
+scene: cabinet
+description: Open a cabinet door using the handle.
+objects:
+  - name: cabinet_door
+    type: articulated
+success:
+  joint_angle_min: 45
+  max_time_seconds: 50
+  max_steps: 15
+randomization:
+  handle_pose: true
+  camera_pose: true
+metrics: [success_rate, completion_time, collision_count, grasp_success_rate]
+failure_labels: [bad_grasp, joint_limit_failure, unstable_contact, occlusion_failure]

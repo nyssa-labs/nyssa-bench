@@ -1,0 +1,19 @@
+task_id: move_to_target
+engine: maniskill
+robot: panda
+scene: tabletop
+description: Move the robot end effector to a randomized target pose.
+objects:
+  - name: target_pose
+    type: marker
+    randomized_pose: true
+success:
+  ee_at_target: target_pose
+  max_time_seconds: 20
+  max_collisions: 1
+  max_steps: 8
+randomization:
+  camera_pose: true
+  target_pose: true
+metrics: [success_rate, completion_time, path_efficiency, collision_count]
+failure_labels: [planner_stuck, joint_limit_failure, missed_target]

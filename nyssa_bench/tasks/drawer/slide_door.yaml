@@ -1,0 +1,17 @@
+task_id: slide_door
+engine: maniskill
+robot: panda
+scene: cabinet
+description: Slide a cabinet door open along its rail.
+objects:
+  - name: sliding_door
+    type: articulated
+success:
+  joint_position_min: 0.7
+  max_time_seconds: 45
+  max_steps: 14
+randomization:
+  rail_friction: [0.2, 1.0]
+  handle_pose: true
+metrics: [success_rate, completion_time, collision_count, path_efficiency]
+failure_labels: [bad_grasp, unstable_contact, joint_limit_failure, planner_stuck]

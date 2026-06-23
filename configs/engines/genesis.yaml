@@ -1,0 +1,3 @@
+engine_id: genesis
+description: Experimental Genesis adapter boundary for future broad physics and contact stress experiments.
+experimental: true

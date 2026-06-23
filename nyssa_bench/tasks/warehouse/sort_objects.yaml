@@ -1,0 +1,24 @@
+task_id: sort_objects
+engine: maniskill
+robot: panda
+scene: warehouse_table
+description: Sort target objects into the correct colored bins.
+objects:
+  - name: target_object
+    type: mixed
+    randomized_pose: true
+  - name: green_bin
+    type: container
+  - name: red_bin
+    type: container
+success:
+  object_inside: correct_bin
+  max_time_seconds: 60
+  max_collisions: 3
+  max_steps: 16
+randomization:
+  distractor_count: [0, 8]
+  object_pose: true
+  lighting: true
+metrics: [success_rate, wrong_object_rate, completion_time, collision_count]
+failure_labels: [wrong_object, occlusion_failure, missed_target, bad_grasp]

@@ -1,0 +1,22 @@
+task_id: stack_cube
+engine: maniskill
+robot: panda
+scene: tabletop
+description: Stack one cube on top of another cube.
+objects:
+  - name: top_cube
+    type: cube
+    randomized_pose: true
+  - name: base_cube
+    type: cube
+success:
+  object_on_top: base_cube
+  max_time_seconds: 45
+  max_collisions: 3
+  max_steps: 14
+randomization:
+  lighting: true
+  object_pose: true
+  friction_range: [0.3, 1.0]
+metrics: [success_rate, completion_time, collision_count, object_slip_rate, path_efficiency]
+failure_labels: [object_slip, unstable_contact, bad_grasp, missed_target]

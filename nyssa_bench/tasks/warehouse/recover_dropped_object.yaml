@@ -1,0 +1,19 @@
+task_id: recover_dropped_object
+engine: maniskill
+robot: panda
+scene: warehouse_floor
+description: Recover an object after a failed grasp or drop.
+objects:
+  - name: dropped_object
+    type: box
+    randomized_pose: true
+success:
+  object_lifted: dropped_object
+  max_time_seconds: 75
+  max_collisions: 4
+  max_steps: 18
+randomization:
+  object_pose: true
+  floor_friction: [0.2, 1.1]
+metrics: [success_rate, recovery_success_rate, completion_time, collision_count, object_slip_rate]
+failure_labels: [object_slip, bad_grasp, planner_stuck, unstable_contact]

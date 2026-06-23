@@ -1,0 +1,2 @@
+policy_id: scripted
+description: Scripted dummy-engine baseline for reproducible smoke tests.

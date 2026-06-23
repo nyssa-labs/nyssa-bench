@@ -1,0 +1,21 @@
+task_id: push_object
+engine: maniskill
+robot: panda
+scene: tabletop
+description: Push an object to a target marker without grasping.
+objects:
+  - name: puck
+    type: cylinder
+    randomized_pose: true
+  - name: target_marker
+    type: marker
+success:
+  object_inside: target_marker
+  max_time_seconds: 30
+  max_collisions: 2
+  max_steps: 10
+randomization:
+  object_pose: true
+  friction_range: [0.2, 1.1]
+metrics: [success_rate, completion_time, path_efficiency, collision_count]
+failure_labels: [missed_target, unstable_contact, collision]

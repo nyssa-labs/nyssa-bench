@@ -1,0 +1,8 @@
+suite_id: tabletop_manipulation_v0
+description: Reproducible tabletop manipulation tasks for first-run policy evaluation.
+tasks:
+  - pick_cube
+  - place_cube
+  - stack_cube
+  - push_object
+  - move_to_target

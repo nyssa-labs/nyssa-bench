@@ -1,0 +1,24 @@
+task_id: pick_from_bin
+engine: maniskill
+robot: panda
+scene: warehouse_bin
+description: Pick the target item from a cluttered warehouse bin.
+objects:
+  - name: target_box
+    type: cube
+    randomized_pose: true
+  - name: bin
+    type: container
+success:
+  object_lifted: target_box
+  max_time_seconds: 45
+  max_collisions: 3
+  max_steps: 14
+randomization:
+  lighting: true
+  object_pose: true
+  camera_pose: true
+  distractor_count: [0, 10]
+  friction_range: [0.3, 1.0]
+metrics: [success_rate, completion_time, collision_count, grasp_failure_rate, recovery_success_rate]
+failure_labels: [bad_grasp, occlusion_failure, wrong_object, object_slip, collision]

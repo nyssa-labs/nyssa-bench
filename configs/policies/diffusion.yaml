@@ -1,0 +1,2 @@
+policy_id: diffusion
+description: Diffusion policy baseline adapter. Uses an injected model when provided, otherwise a smoothed deterministic dummy-engine baseline.

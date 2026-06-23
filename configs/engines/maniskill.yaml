@@ -1,0 +1,4 @@
+engine_id: maniskill
+description: ManiSkill adapter for manipulation-focused simulation.
+optional_extra: maniskill
+gymnasium_compatible: true

@@ -1,0 +1,2 @@
+policy_id: random
+description: Random action baseline for sanity checks.

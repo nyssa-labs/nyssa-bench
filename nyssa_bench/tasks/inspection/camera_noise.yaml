@@ -1,0 +1,16 @@
+task_id: camera_noise
+engine: maniskill
+robot: panda
+scene: stress_tabletop
+description: Evaluate policy stability with camera noise.
+objects:
+  - name: target_object
+    type: cube
+success:
+  object_lifted: target_object
+  max_time_seconds: 45
+  max_steps: 14
+randomization:
+  camera_noise: true
+metrics: [success_rate, completion_time, out_of_distribution_failure_rate]
+failure_labels: [occlusion_failure, missed_target, out_of_distribution_layout]

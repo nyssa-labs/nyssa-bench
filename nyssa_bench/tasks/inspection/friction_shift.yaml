@@ -1,0 +1,16 @@
+task_id: friction_shift
+engine: maniskill
+robot: panda
+scene: stress_tabletop
+description: Shift friction outside nominal training ranges.
+objects:
+  - name: target_object
+    type: cube
+success:
+  object_inside: target_region
+  max_time_seconds: 45
+  max_steps: 14
+randomization:
+  friction_range: [0.05, 1.5]
+metrics: [success_rate, completion_time, object_slip_rate, path_efficiency]
+failure_labels: [object_slip, unstable_contact, missed_target]

@@ -1,0 +1,19 @@
+task_id: open_lid
+engine: maniskill
+robot: panda
+scene: storage_bin
+description: Open a hinged lid without knocking over the container.
+objects:
+  - name: lid
+    type: articulated
+  - name: container
+    type: bin
+success:
+  joint_angle_min: 65
+  max_time_seconds: 45
+  max_steps: 14
+randomization:
+  hinge_friction: [0.2, 1.2]
+  container_pose: true
+metrics: [success_rate, completion_time, collision_count, safety_violation_rate]
+failure_labels: [unstable_contact, collision, joint_limit_failure, bad_grasp]

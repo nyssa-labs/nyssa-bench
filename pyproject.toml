@@ -1,0 +1,146 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nyssa-bench"
+version = "0.1.0"
+description = "Open-source evaluation infrastructure for embodied AI policies under real-world variation."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Nyssa Labs" }]
+keywords = ["robotics", "benchmark", "embodied-ai", "evaluation", "simulation"]
+dependencies = [
+  "numpy>=1.26",
+  "pydantic>=2.6",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+cli = [
+  "rich>=13.7",
+  "typer>=0.12",
+]
+dataset = [
+  "h5py>=3.10",
+  "pandas>=2.1",
+  "pyarrow>=14.0",
+]
+reports = [
+  "jinja2>=3.1",
+  "matplotlib>=3.8",
+  "plotly>=5.20",
+]
+video = [
+  "imageio>=2.34",
+  "imageio-ffmpeg>=0.5",
+]
+dev = [
+  "mypy>=1.8",
+  "pre-commit>=3.6",
+  "pytest>=8.0",
+  "ruff>=0.4",
+  "types-PyYAML>=6.0",
+]
+maniskill = [
+  "gymnasium>=0.29",
+  "mani-skill>=3.0",
+]
+mujoco = ["mujoco>=3.0", "gymnasium>=0.29"]
+lerobot = [
+  "lerobot>=0.1.0",
+]
+robomimic = [
+  "robomimic>=0.4.0",
+]
+robocasa = [
+  "robosuite @ git+https://github.com/ARISE-Initiative/robosuite.git",
+  "robocasa @ git+https://github.com/robocasa/robocasa.git",
+]
+vla = [
+  "accelerate>=0.30",
+  "pillow>=10.0",
+  "safetensors>=0.4",
+  "timm>=0.9",
+  "torch>=2.2",
+  "torchvision>=0.17",
+  "transformers>=4.40",
+]
+diffusion = [
+  "diffusers>=0.27",
+  "einops>=0.7",
+  "torch>=2.2",
+  "torchvision>=0.17",
+]
+experimental = [
+  "genesis-world>=0.2.0",
+]
+all = [
+  "accelerate>=0.30",
+  "diffusers>=0.27",
+  "einops>=0.7",
+  "gymnasium>=0.29",
+  "h5py>=3.10",
+  "imageio>=2.34",
+  "imageio-ffmpeg>=0.5",
+  "jinja2>=3.1",
+  "lerobot>=0.1.0",
+  "mani-skill>=3.0",
+  "matplotlib>=3.8",
+  "mujoco>=3.0",
+  "pandas>=2.1",
+  "pillow>=10.0",
+  "plotly>=5.20",
+  "pyarrow>=14.0",
+  "rich>=13.7",
+  "robomimic>=0.4.0",
+  "safetensors>=0.4",
+  "timm>=0.9",
+  "torch>=2.2",
+  "torchvision>=0.17",
+  "transformers>=4.40",
+  "typer>=0.12",
+]
+full = [
+  "accelerate>=0.30",
+  "diffusers>=0.27",
+  "einops>=0.7",
+  "genesis-world>=0.2.0",
+  "gymnasium>=0.29",
+  "h5py>=3.10",
+  "imageio>=2.34",
+  "imageio-ffmpeg>=0.5",
+  "jinja2>=3.1",
+  "lerobot>=0.1.0",
+  "mani-skill>=3.0",
+  "matplotlib>=3.8",
+  "mujoco>=3.0",
+  "pandas>=2.1",
+  "pillow>=10.0",
+  "plotly>=5.20",
+  "pyarrow>=14.0",
+  "rich>=13.7",
+  "robocasa @ git+https://github.com/robocasa/robocasa.git",
+  "robomimic>=0.4.0",
+  "robosuite @ git+https://github.com/ARISE-Initiative/robosuite.git",
+  "safetensors>=0.4",
+  "timm>=0.9",
+  "torch>=2.2",
+  "torchvision>=0.17",
+  "transformers>=4.40",
+  "typer>=0.12",
+]
+
+[project.scripts]
+nyssa = "nyssa_bench.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["nyssa_bench"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"configs" = "configs"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

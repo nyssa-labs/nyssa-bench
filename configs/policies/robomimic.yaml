@@ -1,0 +1,2 @@
+policy_id: robomimic
+description: RoboMimic baseline adapter. Uses an injected robomimic model when provided, otherwise a deterministic dummy-engine baseline.

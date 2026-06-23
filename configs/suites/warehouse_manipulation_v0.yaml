@@ -1,0 +1,8 @@
+suite_id: warehouse_manipulation_v0
+description: Startup-relevant warehouse manipulation tasks with object and layout variation.
+tasks:
+  - pick_from_bin
+  - place_on_shelf
+  - sort_objects
+  - inspect_package
+  - recover_dropped_object

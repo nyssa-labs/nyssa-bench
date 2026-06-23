@@ -1,0 +1,18 @@
+task_id: press_button
+engine: maniskill
+robot: panda
+scene: control_panel
+description: Press the indicated button on a panel.
+objects:
+  - name: target_button
+    type: button
+    randomized_pose: true
+success:
+  button_pressed: target_button
+  max_time_seconds: 20
+  max_steps: 8
+randomization:
+  distractor_count: [0, 5]
+  lighting: true
+metrics: [success_rate, completion_time, wrong_object_rate, collision_count]
+failure_labels: [wrong_object, missed_target, collision]

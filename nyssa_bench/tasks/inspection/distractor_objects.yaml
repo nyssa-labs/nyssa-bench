@@ -1,0 +1,18 @@
+task_id: distractor_objects
+engine: maniskill
+robot: panda
+scene: stress_tabletop
+description: Add many distractors near the target object.
+objects:
+  - name: target_object
+    type: cube
+  - name: distractors
+    type: mixed
+success:
+  object_lifted: target_object
+  max_time_seconds: 50
+  max_steps: 15
+randomization:
+  distractor_count: [6, 15]
+metrics: [success_rate, wrong_object_rate, completion_time]
+failure_labels: [wrong_object, occlusion_failure, bad_grasp]

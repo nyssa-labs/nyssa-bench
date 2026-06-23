@@ -1,0 +1,4 @@
+engine_id: mujoco
+description: MuJoCo adapter for robot control and contact-rich simulation.
+optional_extra: mujoco
+gymnasium_compatible: true

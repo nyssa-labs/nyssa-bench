@@ -1,0 +1,22 @@
+task_id: place_on_shelf
+engine: maniskill
+robot: panda
+scene: warehouse_shelf
+description: Place a package onto a shelf target.
+objects:
+  - name: package
+    type: box
+    randomized_pose: true
+  - name: shelf_target
+    type: shelf
+success:
+  object_inside: shelf_target
+  max_time_seconds: 60
+  max_collisions: 3
+  max_steps: 16
+randomization:
+  lighting: true
+  camera_pose: true
+  shelf_height: [0.5, 1.2]
+metrics: [success_rate, completion_time, collision_count, path_efficiency, object_slip_rate]
+failure_labels: [missed_target, object_slip, collision, joint_limit_failure]

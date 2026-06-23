@@ -1,0 +1,18 @@
+task_id: toggle_switch
+engine: maniskill
+robot: panda
+scene: control_panel
+description: Toggle the indicated switch without pressing nearby distractors.
+objects:
+  - name: target_switch
+    type: switch
+    randomized_pose: true
+success:
+  switch_state: on
+  max_time_seconds: 20
+  max_steps: 8
+randomization:
+  distractor_count: [0, 4]
+  lighting: true
+metrics: [success_rate, completion_time, wrong_object_rate, collision_count]
+failure_labels: [wrong_object, missed_target, collision, occlusion_failure]

@@ -1,0 +1,31 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+
+REQUIRED = [
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "SECURITY.md",
+    "pyproject.toml",
+    ".github/workflows/ci.yml",
+    "docs/getting_started.md",
+    "docs/benchmark_protocol.md",
+]
+
+
+def main() -> int:
+    missing = [path for path in REQUIRED if not Path(path).exists()]
+    if missing:
+        for path in missing:
+            print(f"missing: {path}")
+        return 1
+    print("release checklist passed")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

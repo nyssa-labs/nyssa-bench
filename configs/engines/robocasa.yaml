@@ -1,0 +1,3 @@
+engine_id: robocasa
+description: Experimental RoboCasa adapter boundary for future kitchen and household manipulation experiments.
+experimental: true

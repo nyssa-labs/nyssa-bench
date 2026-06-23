@@ -1,0 +1,10 @@
+suite_id: stress_tests_v0
+description: Robustness checks under lighting, perception, physics, layout, and latency shifts.
+tasks:
+  - low_light
+  - camera_noise
+  - object_occlusion
+  - friction_shift
+  - distractor_objects
+  - randomized_layout
+  - latency_injection

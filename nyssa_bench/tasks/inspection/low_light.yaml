@@ -1,0 +1,17 @@
+task_id: low_light
+engine: maniskill
+robot: panda
+scene: stress_tabletop
+description: Repeat a pick task under low-light rendering.
+objects:
+  - name: target_object
+    type: cube
+    randomized_pose: true
+success:
+  object_lifted: target_object
+  max_time_seconds: 45
+  max_steps: 14
+randomization:
+  lighting: low
+metrics: [success_rate, completion_time, out_of_distribution_failure_rate]
+failure_labels: [occlusion_failure, out_of_distribution_layout, bad_grasp]

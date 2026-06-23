@@ -1,0 +1,13 @@
+suite_id: articulated_object_v0
+description: Interaction tasks for drawers, cabinets, buttons, and handles.
+tasks:
+  - open_drawer
+  - close_drawer
+  - open_cabinet
+  - press_button
+  - turn_handle
+  - slide_door
+  - toggle_switch
+  - pull_lever
+  - rotate_knob
+  - open_lid

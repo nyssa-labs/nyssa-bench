@@ -1,0 +1,21 @@
+task_id: pick_cube
+engine: maniskill
+robot: panda
+scene: tabletop
+description: Pick the target cube from the table.
+objects:
+  - name: target_cube
+    type: cube
+    randomized_pose: true
+success:
+  object_lifted: target_cube
+  max_time_seconds: 30
+  max_collisions: 2
+  max_steps: 12
+randomization:
+  lighting: true
+  object_pose: true
+  camera_pose: false
+  friction_range: [0.4, 0.9]
+metrics: [success_rate, completion_time, collision_count, grasp_success_rate, recovery_success_rate]
+failure_labels: [bad_grasp, object_slip, missed_target, collision]

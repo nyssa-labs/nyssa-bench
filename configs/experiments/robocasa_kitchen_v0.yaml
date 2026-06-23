@@ -1,0 +1,14 @@
+experiment_id: robocasa_kitchen_v0
+status: experimental
+engine: robocasa
+goal: Validate NyssaBench task specs against RoboCasa-style kitchen manipulation scenarios.
+candidate_tasks:
+  - open_cabinet
+  - close_drawer
+  - toggle_switch
+  - open_lid
+required_mapping:
+  task_spec_to_scene_asset: true
+  articulated_joint_success: true
+  camera_randomization: true
+  failure_taxonomy_mapping: true

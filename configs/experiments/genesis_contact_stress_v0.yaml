@@ -1,0 +1,14 @@
+experiment_id: genesis_contact_stress_v0
+status: experimental
+engine: genesis
+goal: Explore contact-rich stress tests and sim-to-real sensitivity scoring in Genesis.
+candidate_tasks:
+  - friction_shift
+  - randomized_layout
+  - pull_lever
+  - rotate_knob
+required_mapping:
+  task_spec_to_scene_asset: true
+  contact_event_logging: true
+  friction_randomization: true
+  replay_frame_export: true
