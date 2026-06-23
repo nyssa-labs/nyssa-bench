@@ -1,0 +1,6 @@
+suite_id: mujoco_control_v0
+description: MuJoCo control smoke suite for validating NyssaBench against Gymnasium/MuJoCo environments.
+tasks:
+  - mujoco_reacher
+  - mujoco_pusher
+  - mujoco_inverted_pendulum

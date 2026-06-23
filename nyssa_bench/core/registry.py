@@ -12,6 +12,7 @@ from nyssa_bench.policies.openvla_adapter import OpenVLAPolicy
 from nyssa_bench.policies.random_policy import RandomPolicy
 from nyssa_bench.policies.robomimic_adapter import RoboMimicPolicy
 from nyssa_bench.policies.scripted_policy import ScriptedPolicy
+from nyssa_bench.plugins import get_plugin_registry
 
 
 ENGINE_REGISTRY: dict[str, type[NyssaEngine]] = {
@@ -34,6 +35,9 @@ POLICY_REGISTRY: dict[str, type[Policy]] = {
 
 
 def make_engine(name: str) -> NyssaEngine:
+    plugin_engine = get_plugin_registry().engines.get(name)
+    if plugin_engine is not None:
+        return plugin_engine()
     try:
         engine_cls = ENGINE_REGISTRY[name]
     except KeyError as exc:
@@ -43,6 +47,9 @@ def make_engine(name: str) -> NyssaEngine:
 
 
 def make_policy(name: str) -> Policy:
+    plugin_policy = get_plugin_registry().policies.get(name)
+    if plugin_policy is not None:
+        return plugin_policy()
     try:
         policy_cls = POLICY_REGISTRY[name]
     except KeyError as exc:

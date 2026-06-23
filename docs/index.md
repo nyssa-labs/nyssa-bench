@@ -15,3 +15,8 @@ Start here:
 - [Dataset export](dataset_export.md)
 - [Reproducibility](reproducibility.md)
 - [Benchmark protocol](benchmark_protocol.md)
+- [Scorecards](scorecards.md)
+- [Leaderboard spec](leaderboard_spec.md)
+- [Plugins](plugins.md)
+- [API stability](api_stability.md)
+- [Docker](docker.md)

@@ -1,0 +1,19 @@
+task_id: maniskill_stack_cube
+engine: maniskill
+robot: panda
+scene: maniskill_stack_cube
+description: StackCube environment mapped through the ManiSkill Gymnasium registry.
+objects:
+  - name: cube_a
+    type: cube
+  - name: cube_b
+    type: cube
+success:
+  engine_env_ids:
+    maniskill: StackCube-v1
+  render_mode: rgb_array
+  max_steps: 120
+randomization:
+  seed: true
+metrics: [success_rate, completion_time, collision_count, object_slip_rate]
+failure_labels: [bad_grasp, object_slip, unstable_contact]

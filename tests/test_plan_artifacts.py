@@ -3,7 +3,9 @@ from nyssa_bench.core.task import TaskSpec
 from nyssa_bench.randomization import summarize_randomization
 from nyssa_bench.replay.timeline import episode_timeline
 from nyssa_bench.replay.trajectory import state_trajectory
+from nyssa_bench.replay.video import write_episode_video
 from nyssa_bench.specs import SuiteSpec, TaskSpec as StableTaskSpec
+from pathlib import Path
 
 
 def test_stable_spec_imports():
@@ -21,3 +23,23 @@ def test_replay_helpers():
     assert suite.tasks
     assert episode_timeline.__name__ == "episode_timeline"
     assert state_trajectory.__name__ == "state_trajectory"
+
+
+def test_video_writer_handles_missing_frames(tmp_path):
+    assert write_episode_video([], tmp_path, "task", 0) is None
+
+
+def test_static_release_artifacts_exist():
+    required = [
+        "docker/Dockerfile",
+        "docker/Dockerfile.maniskill",
+        "docker/Dockerfile.mujoco",
+        "docker/docker-compose.yml",
+        "site/leaderboard/index.html",
+        "benchmark_results/baselines_v0.json",
+        "docs/paper/nyssabench_v0_protocol.md",
+        "docs/api_stability.md",
+        "docs/plugins.md",
+    ]
+    for path in required:
+        assert Path(path).exists()

@@ -1,0 +1,8 @@
+.git
+.pytest_cache
+.pytest_tmp
+__pycache__
+*.pyc
+runs
+reports
+PLAN.md

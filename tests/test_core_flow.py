@@ -12,6 +12,12 @@ def test_suite_loads_tasks():
     articulated = Suite.load("articulated_object_v0")
     assert len(articulated.tasks) == 10
 
+    maniskill = Suite.load("maniskill_smoke_v0")
+    assert maniskill.tasks[0].success["engine_env_ids"]["maniskill"] == "PickCube-v1"
+
+    mujoco = Suite.load("mujoco_control_v0")
+    assert mujoco.tasks[0].success["engine_env_ids"]["mujoco"] == "Reacher-v5"
+
 
 def test_runner_writes_artifacts(tmp_path: Path):
     suite = Suite.load("tabletop_manipulation_v0")

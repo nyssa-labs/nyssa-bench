@@ -15,12 +15,12 @@ class StepRecord:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "observation": self.observation,
-            "action": self.action,
-            "reward": self.reward,
+            "observation": _to_jsonable(self.observation),
+            "action": _to_jsonable(self.action),
+            "reward": _to_jsonable(self.reward),
             "terminated": self.terminated,
             "truncated": self.truncated,
-            "info": self.info,
+            "info": _to_jsonable(self.info),
         }
 
 
@@ -33,6 +33,8 @@ class EpisodeResult:
     failure_label: str | None
     metrics: dict[str, float]
     steps: list[StepRecord] = field(default_factory=list)
+    replay_path: str | None = None
+    failure_clip_path: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -42,5 +44,21 @@ class EpisodeResult:
             "success": self.success,
             "failure_label": self.failure_label,
             "metrics": self.metrics,
+            "replay_path": self.replay_path,
+            "failure_clip_path": self.failure_clip_path,
             "steps": [step.to_dict() for step in self.steps],
         }
+
+
+def _to_jsonable(value: Any) -> Any:
+    if hasattr(value, "tolist"):
+        return value.tolist()
+    if hasattr(value, "item"):
+        return value.item()
+    if isinstance(value, dict):
+        return {str(key): _to_jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_jsonable(item) for item in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return repr(value)

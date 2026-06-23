@@ -1,0 +1,17 @@
+task_id: mujoco_inverted_pendulum
+engine: mujoco
+robot: mujoco_inverted_pendulum
+scene: mujoco_control
+description: Gymnasium/MuJoCo InvertedPendulum control task.
+objects:
+  - name: pole
+    type: articulated
+success:
+  engine_env_ids:
+    mujoco: InvertedPendulum-v5
+  render_mode: rgb_array
+  max_steps: 50
+randomization:
+  seed: true
+metrics: [success_rate, completion_time, safety_violation_rate]
+failure_labels: [unstable_contact, joint_limit_failure]

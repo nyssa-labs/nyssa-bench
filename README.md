@@ -43,6 +43,8 @@ pip install -e ".[dataset,reports,video]"
 pip install -e ".[lerobot,robomimic,vla,diffusion]"
 ```
 
+Docker images are provided under `docker/` for core, ManiSkill, and MuJoCo smoke environments.
+
 Experimental adapter boundaries for RoboCasa and Genesis are included in the repo. Their integration contracts live in `configs/experiments/`, and the adapters fail with explicit messages until those backends are wired to real task mappings. Use `.[full]` only when you intentionally want the heavy experimental/source dependencies.
 
 ## First Run
@@ -94,6 +96,7 @@ runs/random_warehouse/
 - Failure taxonomy and aggregate metrics.
 - HTML reports and JSON metrics.
 - Policy comparison reports, sim-to-real readiness scores, and local leaderboard export.
+- Static leaderboard shell, protocol draft, scorecard structure, Docker files, and plugin API.
 - CLI, docs, examples, and tests.
 
 ## Positioning

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>NyssaBench Leaderboard</title>
+  <style>
+    body { font-family: Inter, Arial, sans-serif; margin: 40px; color: #17202a; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border-bottom: 1px solid #d8dee4; padding: 8px; text-align: left; }
+  </style>
+</head>
+<body>
+  <h1>NyssaBench Leaderboard</h1>
+  <p>Static leaderboard shell. Export rankings with <code>nyssa leaderboard ... --out site/leaderboard/leaderboard.json</code>.</p>
+  <table>
+    <thead><tr><th>Rank</th><th>Run</th><th>Success</th><th>Sim-to-real</th><th>Primary failure</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <script>
+    fetch("leaderboard.json")
+      .then((response) => response.ok ? response.json() : [])
+      .then((rows) => {
+        const tbody = document.getElementById("rows");
+        for (const row of rows) {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td>${row.rank}</td><td>${row.run_dir}</td><td>${(row.success_rate * 100).toFixed(1)}%</td><td>${row.sim_to_real_score.toFixed(3)}</td><td>${row.primary_failure_mode || ""}</td>`;
+          tbody.appendChild(tr);
+        }
+      });
+  </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+services:
+  nyssa:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ../runs:/app/runs
+      - ../reports:/app/reports
+    command: nyssa run --suite tabletop_manipulation_v0 --engine dummy --policy scripted --episodes 5 --out runs/docker_demo

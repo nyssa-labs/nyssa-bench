@@ -1,0 +1,8 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY . .
+RUN apt-get update && apt-get install -y --no-install-recommends git ffmpeg libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+RUN python -m pip install --upgrade pip && python -m pip install -e ".[maniskill,video]"
+
+CMD ["nyssa", "run", "--suite", "maniskill_smoke_v0", "--engine", "maniskill", "--policy", "random", "--episodes", "1", "--out", "runs/maniskill_smoke"]

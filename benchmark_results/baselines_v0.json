@@ -1,0 +1,20 @@
+{
+  "benchmark": "NyssaBench local dummy baseline",
+  "date": "2026-06-23",
+  "engine": "dummy",
+  "suite": "tabletop_manipulation_v0",
+  "results": [
+    {
+      "policy": "scripted",
+      "episodes_per_task": 10,
+      "status": "example_scorecard",
+      "notes": "Regenerate with scripts/make_demo_report.py or nyssa run before publishing real numbers."
+    },
+    {
+      "policy": "random",
+      "episodes_per_task": 10,
+      "status": "example_scorecard",
+      "notes": "Placeholder scorecard structure; not a public benchmark claim."
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+task_id: maniskill_push_cube
+engine: maniskill
+robot: panda
+scene: maniskill_push_cube
+description: PushCube environment mapped through the ManiSkill Gymnasium registry.
+objects:
+  - name: cube
+    type: cube
+success:
+  engine_env_ids:
+    maniskill: PushCube-v1
+  render_mode: rgb_array
+  max_steps: 80
+randomization:
+  seed: true
+metrics: [success_rate, completion_time, path_efficiency]
+failure_labels: [missed_target, unstable_contact]

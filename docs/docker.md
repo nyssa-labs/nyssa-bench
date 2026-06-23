@@ -1,0 +1,11 @@
+# Docker
+
+NyssaBench includes Docker assets for reproducible local and CI smoke runs.
+
+```bash
+docker build -f docker/Dockerfile -t nyssa-bench:core .
+docker build -f docker/Dockerfile.mujoco -t nyssa-bench:mujoco .
+docker build -f docker/Dockerfile.maniskill -t nyssa-bench:maniskill .
+```
+
+Use Docker for open-source reproducibility. Kubernetes should wait until hosted Nyssa Cloud workers exist.

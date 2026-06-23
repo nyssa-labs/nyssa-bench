@@ -1,0 +1,17 @@
+task_id: mujoco_reacher
+engine: mujoco
+robot: mujoco_reacher
+scene: mujoco_control
+description: Gymnasium/MuJoCo Reacher control task.
+objects:
+  - name: target
+    type: marker
+success:
+  engine_env_ids:
+    mujoco: Reacher-v5
+  render_mode: rgb_array
+  max_steps: 50
+randomization:
+  seed: true
+metrics: [success_rate, completion_time, path_efficiency]
+failure_labels: [missed_target, planner_stuck]

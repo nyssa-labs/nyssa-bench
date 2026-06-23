@@ -18,7 +18,7 @@ from nyssa_bench.metrics.safety import safety_metrics
 from nyssa_bench.metrics.sim_to_real import score_summary
 from nyssa_bench.metrics.success import aggregate_episodes
 from nyssa_bench.policies.base import Policy, PolicyLike, load_policy_from_path
-from nyssa_bench.replay.video import write_replay_manifest
+from nyssa_bench.replay.video import write_episode_video, write_failure_clip, write_replay_manifest
 from nyssa_bench.replay.viewer import replay_viewer_placeholder
 from nyssa_bench.reports.html_report import Report
 from nyssa_bench.utils.reproducibility import (
@@ -99,12 +99,21 @@ class PolicyRunner:
     def _run_episode(self, engine: Any, policy: PolicyLike, task_id: str, episode_index: int, seed: int) -> EpisodeResult:
         observation, _ = engine.reset(seed=seed)
         steps: list[StepRecord] = []
+        frames: list[Any] = []
         last_info: dict[str, Any] = {}
         step_limit = self.max_steps or getattr(engine, "max_steps", 1000)
+        if self.out:
+            frame = _safe_render(engine)
+            if frame is not None:
+                frames.append(frame)
 
         for _ in range(step_limit):
             action = policy.act(observation)
             next_observation, reward, terminated, truncated, info = engine.step(action)
+            if self.out:
+                frame = _safe_render(engine)
+                if frame is not None:
+                    frames.append(frame)
             steps.append(
                 StepRecord(
                     observation=observation,
@@ -130,7 +139,7 @@ class PolicyRunner:
             **safety_metrics(last_info),
             **robustness_metrics(last_info),
         }
-        return EpisodeResult(
+        episode = EpisodeResult(
             task_id=task_id,
             episode_index=episode_index,
             seed=seed,
@@ -139,6 +148,9 @@ class PolicyRunner:
             metrics=metrics,
             steps=steps,
         )
+        if self.out:
+            episode.replay_path = write_episode_video(frames, self.out, task_id, episode_index)
+        return episode
 
     def _load_policy(self) -> PolicyLike:
         if isinstance(self.policy_ref, Policy):
@@ -171,12 +183,21 @@ class PolicyRunner:
         write_json(self.out / "environment.json", environment_metadata())
         write_json(self.out / "package_versions.json", package_versions())
         write_json(self.out / "git_info.json", git_info(REPO_ROOT))
+        (self.out / "plots").mkdir(exist_ok=True)
+        for episode in self.episode_results:
+            write_failure_clip(self.out, episode)
         with (self.out / "metrics.json").open("w", encoding="utf-8") as handle:
             json.dump(report.summary, handle, indent=2)
         export_metrics_csv(report.summary, self.out / "metrics.csv")
         export_json(self.episode_results, self.out / "episodes.json")
         export_jsonl(self.episode_results, self.out / "episodes.jsonl")
-        (self.out / "plots").mkdir(exist_ok=True)
         write_replay_manifest(self.episode_results, self.out)
         replay_viewer_placeholder(self.out)
         report.save(self.out / "report.html")
+
+
+def _safe_render(engine: Any) -> Any:
+    try:
+        return engine.render()
+    except Exception:
+        return None

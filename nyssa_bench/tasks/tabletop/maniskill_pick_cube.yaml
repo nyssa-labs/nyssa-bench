@@ -1,0 +1,17 @@
+task_id: maniskill_pick_cube
+engine: maniskill
+robot: panda
+scene: maniskill_pick_cube
+description: PickCube environment mapped through the ManiSkill Gymnasium registry.
+objects:
+  - name: cube
+    type: cube
+success:
+  engine_env_ids:
+    maniskill: PickCube-v1
+  render_mode: rgb_array
+  max_steps: 80
+randomization:
+  seed: true
+metrics: [success_rate, completion_time, collision_count, grasp_success_rate]
+failure_labels: [bad_grasp, object_slip, missed_target]

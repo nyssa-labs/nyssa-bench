@@ -12,17 +12,19 @@ class ManiSkillEngine(NyssaEngine):
     def __init__(self) -> None:
         self.env: Any | None = None
         self.task_spec: TaskSpec | None = None
+        self.max_steps = 1000
 
     def load_task(self, task_spec: TaskSpec) -> None:
         self.task_spec = task_spec
+        self.max_steps = int(task_spec.success.get("max_steps", self.max_steps))
         try:
             import gymnasium as gym
             import mani_skill  # noqa: F401
         except ImportError as exc:
             raise RuntimeError("Install NyssaBench with the ManiSkill extra: pip install -e '.[maniskill]'") from exc
 
-        env_id = task_spec.success.get("maniskill_env_id") or task_spec.task_id
-        self.env = gym.make(env_id)
+        env_id = _resolve_env_id(task_spec, "maniskill")
+        self.env = gym.make(env_id, render_mode=task_spec.success.get("render_mode", "rgb_array"))
 
     def reset(self, seed: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
         self._require_env()
@@ -50,3 +52,10 @@ class ManiSkillEngine(NyssaEngine):
     def _require_env(self) -> None:
         if self.env is None:
             raise RuntimeError("No ManiSkill environment loaded. Call load_task first.")
+
+
+def _resolve_env_id(task_spec: TaskSpec, engine: str) -> str:
+    engine_env_ids = task_spec.success.get("engine_env_ids", {})
+    if isinstance(engine_env_ids, dict) and engine_env_ids.get(engine):
+        return str(engine_env_ids[engine])
+    return str(task_spec.success.get(f"{engine}_env_id") or task_spec.task_id)

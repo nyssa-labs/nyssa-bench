@@ -1,0 +1,17 @@
+task_id: mujoco_pusher
+engine: mujoco
+robot: mujoco_pusher
+scene: mujoco_control
+description: Gymnasium/MuJoCo Pusher control task.
+objects:
+  - name: puck
+    type: object
+success:
+  engine_env_ids:
+    mujoco: Pusher-v5
+  render_mode: rgb_array
+  max_steps: 50
+randomization:
+  seed: true
+metrics: [success_rate, completion_time, path_efficiency]
+failure_labels: [missed_target, unstable_contact]
