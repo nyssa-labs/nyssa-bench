@@ -138,6 +138,9 @@ nyssa = "nyssa_bench.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = ["nyssa_bench"]
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.build.targets.wheel.force-include]
 "configs" = "configs"
 
