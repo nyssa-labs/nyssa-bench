@@ -1,2 +1,2 @@
 policy_id: openvla
-description: OpenVLA adapter. Uses an injected OpenVLA model when provided, otherwise a VLA-shaped dummy-engine baseline.
+description: OpenVLA adapter. Uses NYSSA_OPENVLA_POLICY=module:factory when set, otherwise a VLA-shaped dummy-engine baseline.

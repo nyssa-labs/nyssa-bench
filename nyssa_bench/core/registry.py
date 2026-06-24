@@ -8,6 +8,7 @@ from nyssa_bench.engines.mujoco_adapter import MuJoCoEngine
 from nyssa_bench.engines.robocasa_adapter import RoboCasaEngine
 from nyssa_bench.policies.base import Policy
 from nyssa_bench.policies.diffusion_policy_adapter import DiffusionPolicyAdapter
+from nyssa_bench.policies.lerobot_adapter import LeRobotPolicy
 from nyssa_bench.policies.openvla_adapter import OpenVLAPolicy
 from nyssa_bench.policies.random_policy import RandomPolicy
 from nyssa_bench.policies.robomimic_adapter import RoboMimicPolicy
@@ -28,6 +29,7 @@ POLICY_REGISTRY: dict[str, type[Policy]] = {
     "random": RandomPolicy,
     "scripted": ScriptedPolicy,
     "oracle": ScriptedPolicy,
+    "lerobot": LeRobotPolicy,
     "robomimic": RoboMimicPolicy,
     "diffusion": DiffusionPolicyAdapter,
     "openvla": OpenVLAPolicy,

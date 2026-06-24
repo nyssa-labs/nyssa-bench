@@ -33,6 +33,7 @@ class ManiSkillEngine(NyssaEngine):
 
     def step(self, action: Any) -> tuple[dict[str, Any], float, bool, bool, dict[str, Any]]:
         self._require_env()
+        action = self._coerce_action(action)
         observation, reward, terminated, truncated, info = self.env.step(action)
         return {"raw": observation}, float(reward), bool(terminated), bool(truncated), dict(info)
 
@@ -52,6 +53,23 @@ class ManiSkillEngine(NyssaEngine):
     def _require_env(self) -> None:
         if self.env is None:
             raise RuntimeError("No ManiSkill environment loaded. Call load_task first.")
+
+    def _coerce_action(self, action: Any) -> Any:
+        if self.env is None or not hasattr(self.env, "action_space"):
+            return action
+        action_space = self.env.action_space
+        if hasattr(action_space, "shape") and action_space.shape and isinstance(action, (int, float)):
+            try:
+                import numpy as np
+            except ImportError:
+                return action
+            low = getattr(action_space, "low", None)
+            high = getattr(action_space, "high", None)
+            value = np.full(action_space.shape, float(action), dtype=getattr(action_space, "dtype", float))
+            if low is not None and high is not None:
+                value = np.clip(value, low, high)
+            return value
+        return action
 
 
 def _resolve_env_id(task_spec: TaskSpec, engine: str) -> str:

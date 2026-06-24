@@ -35,6 +35,8 @@ def test_cli_run_and_export(tmp_path: Path):
 
     assert main(["export", "--run", str(run_dir), "--format", "lerobot"]) == 0
     assert (run_dir / "lerobot" / "meta.json").exists()
+    assert main(["export", "--run", str(run_dir), "--format", "jsonl"]) == 0
+    assert (run_dir / "episodes.export.jsonl").exists()
 
     assert main(
         [
@@ -57,9 +59,13 @@ def test_cli_run_and_export(tmp_path: Path):
     assert (tmp_path / "leaderboard.json").exists()
 
 
-def test_scripts_smoke():
+def test_scripts_smoke(tmp_path: Path):
     from scripts.release_checklist import main as release_checklist
+    from scripts.validate_backend import main as validate_backend
     from scripts.validate_configs import main as validate_configs
 
     assert validate_configs() == 0
+    assert validate_backend(["dummy", "--episodes", "1", "--out", str(tmp_path / "dummy_smoke")]) == 0
+    assert validate_backend(["robocasa"]) == 0
+    assert validate_backend(["genesis"]) == 0
     assert release_checklist() == 0

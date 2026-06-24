@@ -3,18 +3,18 @@ from __future__ import annotations
 from typing import Any
 
 from nyssa_bench.policies.base import Policy
+from nyssa_bench.policies.loaders import call_model, load_callable_from_env
 
 
 class LeRobotPolicy(Policy):
-    """Thin placeholder for LeRobot policies.
-
-    v0.1 keeps the interface stable while dataset export support lands first.
-    """
+    """LeRobot-compatible adapter with a deterministic smoke fallback."""
 
     def __init__(self, model: Any | None = None) -> None:
-        self.model = model
+        self.model = model if model is not None else load_callable_from_env("NYSSA_LEROBOT_POLICY")
 
     def act(self, observation: dict[str, Any]) -> Any:
         if self.model is None:
-            raise RuntimeError("LeRobotPolicy requires a loaded LeRobot model")
-        return self.model.select_action(observation)
+            state = observation.get("state", {})
+            distance = float(state.get("distance", 0.0))
+            return max(min(distance * 0.5, 0.25), -0.25)
+        return call_model(self.model, observation, ("select_action", "predict_action", "act"))

@@ -42,6 +42,7 @@ class PolicyRunner:
         seed: int = 0,
         out: str | Path | None = None,
         max_steps: int | None = None,
+        capture_replay: bool = True,
     ) -> None:
         self.policy_ref = policy
         self.engine_name = engine
@@ -49,6 +50,7 @@ class PolicyRunner:
         self.seed = seed
         self.out = Path(out) if out else None
         self.max_steps = max_steps
+        self.capture_replay = capture_replay
         self.episode_results: list[EpisodeResult] = []
         self.run_metadata: dict[str, Any] = {}
 
@@ -102,7 +104,7 @@ class PolicyRunner:
         frames: list[Any] = []
         last_info: dict[str, Any] = {}
         step_limit = self.max_steps or getattr(engine, "max_steps", 1000)
-        if self.out:
+        if self.out and self.capture_replay:
             frame = _safe_render(engine)
             if frame is not None:
                 frames.append(frame)
@@ -110,7 +112,7 @@ class PolicyRunner:
         for _ in range(step_limit):
             action = policy.act(observation)
             next_observation, reward, terminated, truncated, info = engine.step(action)
-            if self.out:
+            if self.out and self.capture_replay:
                 frame = _safe_render(engine)
                 if frame is not None:
                     frames.append(frame)

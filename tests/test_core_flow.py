@@ -39,6 +39,7 @@ def test_runner_writes_artifacts(tmp_path: Path):
     assert (tmp_path / "replay_manifest.json").exists()
     assert (tmp_path / "replay.html").exists()
     assert (tmp_path / "videos").is_dir()
+    assert any((tmp_path / "videos").glob("*.mp4"))
     assert (tmp_path / "failures").is_dir()
     assert (tmp_path / "plots").is_dir()
     assert (tmp_path / "report.html").exists()

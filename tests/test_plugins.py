@@ -22,3 +22,10 @@ def test_plugin_policy_registration():
 
     assert get_plugin_registry().policies["constant"] is ConstantPolicy
     assert isinstance(make_policy("constant"), ConstantPolicy)
+
+
+def test_builtin_external_policy_adapters_are_registered():
+    for policy_name in ["lerobot", "openvla", "robomimic", "diffusion"]:
+        policy = make_policy(policy_name)
+        action = policy.act({"state": {"distance": 0.4}})
+        assert isinstance(action, float)
