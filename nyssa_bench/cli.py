@@ -35,6 +35,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--seed", type=int, default=0)
     run_parser.add_argument("--out", required=True)
     run_parser.add_argument("--no-replay", action="store_true")
+    run_parser.add_argument("--capture-replay", action="store_true")
 
     report_parser = subparsers.add_parser("report")
     report_parser.add_argument("run")
@@ -85,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
             episodes=args.episodes,
             seed=args.seed,
             out=args.out,
-            capture_replay=not args.no_replay,
+            capture_replay=_capture_replay_default(args.engine, args.no_replay, args.capture_replay),
         )
         report = runner.evaluate(suite)
         print(f"report: {Path(args.out) / 'report.html'}")
@@ -153,6 +154,14 @@ def _validate_target(target: str) -> None:
         Suite.load(target)
     except FileNotFoundError:
         TaskSpec.load(target)
+
+
+def _capture_replay_default(engine: str, no_replay: bool, capture_replay: bool) -> bool:
+    if no_replay:
+        return False
+    if capture_replay:
+        return True
+    return engine in {"dummy", "local"}
 
 
 def _load_episodes(run_dir: Path):

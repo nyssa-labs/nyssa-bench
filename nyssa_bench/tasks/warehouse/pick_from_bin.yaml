@@ -10,6 +10,8 @@ objects:
   - name: bin
     type: container
 success:
+  engine_env_ids:
+    maniskill: PickCube-v1
   object_lifted: target_box
   max_time_seconds: 45
   max_collisions: 3

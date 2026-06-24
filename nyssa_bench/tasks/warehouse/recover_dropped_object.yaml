@@ -8,6 +8,8 @@ objects:
     type: box
     randomized_pose: true
 success:
+  engine_env_ids:
+    maniskill: PickCube-v1
   object_lifted: dropped_object
   max_time_seconds: 75
   max_collisions: 4

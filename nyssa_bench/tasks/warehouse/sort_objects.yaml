@@ -12,6 +12,8 @@ objects:
   - name: red_bin
     type: container
 success:
+  engine_env_ids:
+    maniskill: PushCube-v1
   object_inside: correct_bin
   max_time_seconds: 60
   max_collisions: 3

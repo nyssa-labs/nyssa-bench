@@ -10,6 +10,8 @@ objects:
   - name: shelf_target
     type: shelf
 success:
+  engine_env_ids:
+    maniskill: StackCube-v1
   object_inside: shelf_target
   max_time_seconds: 60
   max_collisions: 3
