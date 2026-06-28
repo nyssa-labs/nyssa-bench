@@ -1,9 +1,9 @@
 # Installation
 
-Install the lightweight local package first:
+Install the package with at least one real simulator backend:
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dev,mujoco]"
 ```
 
 Optional simulator and dataset extras are installed only when needed:
@@ -16,7 +16,7 @@ pip install -e ".[reports]"
 pip install -e ".[video]"
 ```
 
-The dummy engine requires no robotics simulator and is the recommended first validation path.
+Use `mujoco` for the lightest real backend path and `maniskill` for manipulation tasks.
 
 ## Extras
 

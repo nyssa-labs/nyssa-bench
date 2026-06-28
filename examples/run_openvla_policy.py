@@ -13,6 +13,6 @@ def load_openvla_model(model_id: str):
 
 
 model = load_openvla_model("openvla/openvla-7b")
-suite = Suite.load("tabletop_manipulation_v0")
-runner = PolicyRunner(policy=OpenVLAPolicy(model), engine="dummy", episodes=5, out="runs/openvla_example")
+suite = Suite.load("maniskill_smoke_v0")
+runner = PolicyRunner(policy=OpenVLAPolicy(model), engine="maniskill", episodes=5, out="runs/openvla_example")
 runner.evaluate(suite)

@@ -9,8 +9,8 @@ from nyssa_bench import PolicyRunner, Suite
 
 
 def main() -> int:
-    suite = Suite.load("tabletop_manipulation_v0")
-    PolicyRunner(policy="scripted", engine="dummy", episodes=3, seed=42, out="runs/demo").evaluate(suite)
+    suite = Suite.load("mujoco_control_v0")
+    PolicyRunner(policy="random", engine="mujoco", episodes=3, seed=42, out="runs/demo").evaluate(suite)
     print("wrote runs/demo/report.html")
     return 0
 

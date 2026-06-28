@@ -13,7 +13,6 @@ from nyssa_bench.core.task import TaskSpec
 
 
 BACKEND_SUITES = {
-    "dummy": "tabletop_manipulation_v0",
     "maniskill": "maniskill_smoke_v0",
     "mujoco": "mujoco_control_v0",
 }
@@ -25,7 +24,7 @@ EXPERIMENT_CONTRACTS = {
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run a backend smoke validation.")
+    parser = argparse.ArgumentParser(description="Run a real backend validation.")
     parser.add_argument("backend", choices=sorted(set(BACKEND_SUITES) | set(EXPERIMENT_CONTRACTS)))
     parser.add_argument("--episodes", type=int, default=1)
     parser.add_argument("--out", default=None)
@@ -44,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     suite_id = BACKEND_SUITES[args.backend]
-    out = args.out or f"runs/{args.backend}_smoke"
+    out = args.out or f"runs/{args.backend}_validation"
     suite = Suite.load(suite_id)
     PolicyRunner(
         policy=args.policy,
@@ -54,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
         out=out,
         capture_replay=args.capture_replay,
     ).evaluate(suite)
-    print(f"{args.backend} smoke passed: {out}")
+    print(f"{args.backend} validation passed: {out}")
     return 0
 
 

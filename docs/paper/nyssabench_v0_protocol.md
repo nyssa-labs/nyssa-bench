@@ -32,4 +32,4 @@ Compare policies only when task specs, engine, randomization settings, and seed 
 
 The v0 score is not a calibrated sim-to-real predictor. Treat it as a readiness proxy until validated against real robot outcomes.
 
-The dummy engine is excluded from public scorecards. It is only a deterministic smoke-test backend for CI, docs, and local workflow validation.
+The protocol excludes synthetic backends. Published scorecards use real simulator adapters only.

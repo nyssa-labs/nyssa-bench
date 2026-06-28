@@ -9,9 +9,9 @@ class Policy:
     def close(self): ...
 ```
 
-Built-ins include `random`, `scripted`, `lerobot`, `robomimic`, `diffusion`, and `openvla`.
+Built-ins include `random`, `lerobot`, `robomimic`, `diffusion`, and `openvla`.
 
-The LeRobot, robomimic, diffusion, and OpenVLA adapters can wrap real loaded models when used from Python. When invoked by name from the CLI, they read an optional model factory from the environment and otherwise run deterministic dummy-engine baselines so comparison reports can be smoke-tested without heavyweight model installs.
+The LeRobot, robomimic, diffusion, and OpenVLA adapters can wrap real loaded models when used from Python. When invoked by name from the CLI, they require a model factory from the environment.
 
 ```bash
 NYSSA_LEROBOT_POLICY=my_project.policies:create_lerobot_policy nyssa run --policy lerobot ...

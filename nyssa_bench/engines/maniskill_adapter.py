@@ -4,6 +4,7 @@ from typing import Any
 
 from nyssa_bench.core.task import TaskSpec
 from nyssa_bench.engines.base import NyssaEngine
+from nyssa_bench.engines.spaces import wrap_observation
 
 
 class ManiSkillEngine(NyssaEngine):
@@ -29,7 +30,7 @@ class ManiSkillEngine(NyssaEngine):
     def reset(self, seed: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
         self._require_env()
         observation, info = self.env.reset(seed=seed)
-        return {"raw": observation}, dict(info)
+        return wrap_observation(self.env, observation), dict(info)
 
     def step(self, action: Any) -> tuple[dict[str, Any], float, bool, bool, dict[str, Any]]:
         self._require_env()
@@ -38,7 +39,7 @@ class ManiSkillEngine(NyssaEngine):
         info = dict(info)
         info["success"] = _extract_success(info, self.task_spec)
         info.setdefault("failure_label", None if info["success"] else _default_failure_label(self.task_spec))
-        return {"raw": observation}, float(reward), bool(terminated), bool(truncated), info
+        return wrap_observation(self.env, observation), float(reward), bool(terminated), bool(truncated), info
 
     def render(self) -> Any:
         self._require_env()

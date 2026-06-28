@@ -4,4 +4,3 @@ end_effector: parallel_gripper
 supported_engines:
   - maniskill
   - mujoco
-  - dummy

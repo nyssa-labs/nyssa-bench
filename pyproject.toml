@@ -54,7 +54,7 @@ lerobot = [
   "lerobot>=0.1.0",
 ]
 robomimic = [
-  "robomimic>=0.4.0",
+  "robomimic>=0.3.0",
 ]
 robocasa = [
   "robosuite @ git+https://github.com/ARISE-Initiative/robosuite.git",
@@ -96,7 +96,7 @@ all = [
   "plotly>=5.20",
   "pyarrow>=14.0",
   "rich>=13.7",
-  "robomimic>=0.4.0",
+  "robomimic>=0.3.0",
   "safetensors>=0.4",
   "timm>=0.9",
   "torch>=2.2",
@@ -124,7 +124,7 @@ full = [
   "pyarrow>=14.0",
   "rich>=13.7",
   "robocasa @ git+https://github.com/robocasa/robocasa.git",
-  "robomimic>=0.4.0",
+  "robomimic>=0.3.0",
   "robosuite @ git+https://github.com/ARISE-Initiative/robosuite.git",
   "safetensors>=0.4",
   "timm>=0.9",

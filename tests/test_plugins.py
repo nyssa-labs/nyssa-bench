@@ -1,5 +1,7 @@
 from typing import Any
 
+import pytest
+
 from nyssa_bench.core.registry import make_policy
 from nyssa_bench.plugins import NyssaPlugin, get_plugin_registry, register_plugin
 
@@ -26,6 +28,5 @@ def test_plugin_policy_registration():
 
 def test_builtin_external_policy_adapters_are_registered():
     for policy_name in ["lerobot", "openvla", "robomimic", "diffusion"]:
-        policy = make_policy(policy_name)
-        action = policy.act({"state": {"distance": 0.4}})
-        assert isinstance(action, float)
+        with pytest.raises(RuntimeError):
+            make_policy(policy_name)

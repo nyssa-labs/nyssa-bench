@@ -1,2 +1,2 @@
 policy_id: lerobot
-description: LeRobot-compatible adapter. Uses NYSSA_LEROBOT_POLICY=module:factory when set, otherwise a deterministic dummy-engine smoke baseline.
+description: LeRobot-compatible adapter. Requires NYSSA_LEROBOT_POLICY=module:factory for CLI runs or a loaded model from Python.

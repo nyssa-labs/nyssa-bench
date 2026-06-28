@@ -11,6 +11,6 @@ def load_diffusion_policy(path: str):
 
 
 model = load_diffusion_policy("checkpoints/diffusion_policy.pt")
-suite = Suite.load("tabletop_manipulation_v0")
-runner = PolicyRunner(policy=DiffusionPolicyAdapter(model), engine="dummy", episodes=5, out="runs/diffusion_example")
+suite = Suite.load("maniskill_smoke_v0")
+runner = PolicyRunner(policy=DiffusionPolicyAdapter(model), engine="maniskill", episodes=5, out="runs/diffusion_example")
 runner.evaluate(suite)

@@ -35,25 +35,36 @@ def call_model(model: Any, observation: dict[str, Any], method_names: tuple[str,
     for method_name in method_names:
         method = getattr(model, method_name, None)
         if callable(method):
-            return method(observation)
+            return normalize_action(method(observation))
     if callable(model):
-        return model(observation)
+        return normalize_action(model(observation))
     raise TypeError(f"Model must be callable or implement one of: {', '.join(method_names)}")
 
 
-def dummy_state_fallback_action(
-    observation: dict[str, Any],
-    *,
-    gain: float,
-    limit: float,
-    policy_name: str,
-    env_var: str,
-) -> float:
-    state = observation.get("state")
-    if not isinstance(state, dict) or "distance" not in state:
+def require_model(model: Any | None, *, policy_name: str, env_var: str) -> Any:
+    if model is None:
         raise RuntimeError(
-            f"{policy_name} requires {env_var}=module:factory for real simulator observations. "
-            "The built-in fallback only supports the dummy smoke-test engine."
+            f"{policy_name} requires a real model. Pass one from Python or set "
+            f"{env_var}=module:factory for CLI runs."
         )
-    distance = float(state.get("distance", 0.0))
-    return max(min(distance * gain, limit), -limit)
+    return model
+
+
+def normalize_action(action: Any) -> Any:
+    if isinstance(action, dict):
+        for key in ("action", "actions", "pred_action", "pred_actions"):
+            if key in action:
+                return normalize_action(action[key])
+        return action
+    if hasattr(action, "detach"):
+        action = action.detach()
+    if hasattr(action, "cpu"):
+        action = action.cpu()
+    if hasattr(action, "numpy"):
+        return action.numpy()
+    if hasattr(action, "item"):
+        try:
+            return action.item()
+        except ValueError:
+            pass
+    return action

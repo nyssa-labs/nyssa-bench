@@ -1,6 +1,39 @@
 from pathlib import Path
+from typing import Any
 
 from nyssa_bench.cli import main
+from nyssa_bench.engines.base import NyssaEngine
+from nyssa_bench.plugins import get_plugin_registry
+
+
+class CliUnitEngine(NyssaEngine):
+    max_steps = 1
+
+    def load_task(self, task_spec: Any) -> None:
+        self.task_spec = task_spec
+
+    def reset(self, seed: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
+        return _observation(), {"seed": seed}
+
+    def step(self, action: Any) -> tuple[dict[str, Any], float, bool, bool, dict[str, Any]]:
+        return _observation(), 1.0, True, False, {"success": True, "completion_time": 1.0, "path_efficiency": 1.0}
+
+    def render(self) -> Any:
+        return None
+
+    def get_state(self) -> dict[str, Any]:
+        return {}
+
+    def close(self) -> None:
+        return None
+
+
+def _observation() -> dict[str, Any]:
+    return {"raw": [0.0], "action_space": {"type": "box", "shape": [1], "low": [-1.0], "high": [1.0]}}
+
+
+def _register_cli_engine() -> None:
+    get_plugin_registry().engines["cli_real"] = CliUnitEngine
 
 
 def test_cli_lists_and_validates():
@@ -13,6 +46,7 @@ def test_cli_lists_and_validates():
 
 
 def test_cli_run_and_export(tmp_path: Path):
+    _register_cli_engine()
     run_dir = tmp_path / "run"
     other_run_dir = tmp_path / "other_run"
 
@@ -22,7 +56,7 @@ def test_cli_run_and_export(tmp_path: Path):
             "--suite",
             "warehouse_manipulation_v0",
             "--engine",
-            "dummy",
+            "cli_real",
             "--policy",
             "random",
             "--episodes",
@@ -44,9 +78,9 @@ def test_cli_run_and_export(tmp_path: Path):
             "--suite",
             "warehouse_manipulation_v0",
             "--engine",
-            "dummy",
+            "cli_real",
             "--policy",
-            "diffusion",
+            "random",
             "--episodes",
             "1",
             "--out",
@@ -65,7 +99,6 @@ def test_scripts_smoke(tmp_path: Path):
     from scripts.validate_configs import main as validate_configs
 
     assert validate_configs() == 0
-    assert validate_backend(["dummy", "--episodes", "1", "--out", str(tmp_path / "dummy_smoke")]) == 0
     assert validate_backend(["robocasa"]) == 0
     assert validate_backend(["genesis"]) == 0
     assert release_checklist() == 0

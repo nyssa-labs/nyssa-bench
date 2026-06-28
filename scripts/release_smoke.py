@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run a clean NyssaBench release smoke test.")
+    parser = argparse.ArgumentParser(description="Run a clean NyssaBench release check.")
     parser.add_argument("--venv", default=".release-venv")
     parser.add_argument("--skip-install", action="store_true")
     parser.add_argument("--keep", action="store_true")
@@ -26,39 +26,16 @@ def main(argv: list[str] | None = None) -> int:
         _run([str(_python(venv)), "-m", "pip", "install", "-e", ".[dev,video,dataset,reports]"], cwd=ROOT)
 
     python = _python(venv) if venv.exists() else Path(sys.executable)
-    run_dir = ROOT / "runs" / "release_smoke"
-    if run_dir.exists():
-        shutil.rmtree(run_dir)
-
     checks = [
         [str(python), "-m", "pytest", "-q", "-p", "no:cacheprovider", "--basetemp", ".pytest-release-tmp"],
         [str(python), "-m", "nyssa_bench.cli", "list-suites"],
-        [
-            str(python),
-            "-m",
-            "nyssa_bench.cli",
-            "run",
-            "--suite",
-            "tabletop_manipulation_v0",
-            "--engine",
-            "dummy",
-            "--policy",
-            "scripted",
-            "--episodes",
-            "1",
-            "--out",
-            str(run_dir),
-        ],
-        [str(python), "-m", "nyssa_bench.cli", "report", str(run_dir)],
-        [str(python), "-m", "nyssa_bench.cli", "export", "--run", str(run_dir), "--format", "lerobot"],
-        [str(python), "-m", "nyssa_bench.cli", "export", "--run", str(run_dir), "--format", "jsonl"],
         [str(python), "scripts/validate_configs.py"],
         [str(python), "scripts/release_checklist.py"],
     ]
     for command in checks:
         _run(command, cwd=ROOT)
 
-    print(f"release smoke passed: {run_dir}")
+    print("release check passed")
     return 0
 
 

@@ -4,29 +4,29 @@
 
 Run reproducible robot-policy benchmarks, stress-test failures, and export simulation data for training.
 
-NyssaBench is not a simulator. It is an evaluation and failure-analysis layer that sits on top of robotics simulators such as ManiSkill and MuJoCo, with experimental adapter boundaries for RoboCasa and Genesis. The v0.1 scaffold ships with a deterministic dummy engine so the full benchmark loop can run in minutes without a heavy simulator install. Dummy-engine runs are smoke tests only; public scorecards should use real simulator suites.
+NyssaBench is not a simulator. It is an evaluation and failure-analysis layer that sits on top of robotics simulators such as ManiSkill and MuJoCo, with experimental adapter boundaries for RoboCasa and Genesis. Public scorecards use real simulator adapters only.
 
 ```python
 from nyssa_bench import PolicyRunner, Suite
 
-suite = Suite.load("warehouse_manipulation_v0")
+suite = Suite.load("mujoco_control_v0")
 
 runner = PolicyRunner(
     policy="random",
-    engine="dummy",
+    engine="mujoco",
     episodes=10,
     seed=42,
-    out="runs/random_warehouse",
+    out="runs/random_mujoco",
 )
 
 report = runner.evaluate(suite)
-report.save("runs/random_warehouse/report.html")
+report.save("runs/random_mujoco/report.html")
 ```
 
 ## Install
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dev,mujoco]"
 ```
 
 Optional runnable simulator integrations:
@@ -43,7 +43,7 @@ pip install -e ".[dataset,reports,video]"
 pip install -e ".[lerobot,robomimic,vla,diffusion]"
 ```
 
-Docker images are provided under `docker/` for core, ManiSkill, and MuJoCo smoke environments.
+Docker images are provided under `docker/` for core, ManiSkill, and MuJoCo environments.
 
 Experimental adapters for RoboCasa and Genesis are included in the repo. Their integration contracts live in `configs/experiments/`; contract validation works without heavyweight assets, and full simulator runs require concrete task-to-scene mappings plus upstream setup. Use `.[full]` only when you intentionally want the heavy experimental/source dependencies.
 
@@ -53,23 +53,23 @@ Experimental adapters for RoboCasa and Genesis are included in the repo. Their i
 nyssa list-suites
 
 nyssa run \
-  --suite warehouse_manipulation_v0 \
-  --engine dummy \
+  --suite mujoco_control_v0 \
+  --engine mujoco \
   --policy random \
   --episodes 10 \
-  --out runs/random_warehouse
+  --out runs/random_mujoco
 
-nyssa report runs/random_warehouse
-nyssa export --run runs/random_warehouse --format lerobot
-nyssa export --run runs/random_warehouse --format jsonl
-nyssa compare runs/random_warehouse runs/other_policy --out reports/compare.html
-nyssa leaderboard runs/random_warehouse runs/other_policy --out reports/leaderboard.json
+nyssa report runs/random_mujoco
+nyssa export --run runs/random_mujoco --format lerobot
+nyssa export --run runs/random_mujoco --format jsonl
+nyssa compare runs/random_mujoco runs/other_policy --out reports/compare.html
+nyssa leaderboard runs/random_mujoco runs/other_policy --out reports/leaderboard.json
 ```
 
 The run folder contains:
 
 ```txt
-runs/random_warehouse/
+runs/random_mujoco/
 |-- config.yaml
 |-- run.yaml
 |-- environment.json
@@ -88,12 +88,6 @@ runs/random_warehouse/
 `-- report.html
 ```
 
-Generate the local demo GIF:
-
-```bash
-python scripts/make_demo_gif.py
-```
-
 Validate optional simulator backends:
 
 ```bash
@@ -103,9 +97,9 @@ python scripts/validate_backend.py robocasa
 python scripts/validate_backend.py genesis
 ```
 
-`robocasa` and `genesis` validate their experiment contracts by default. They only run full simulator smoke tests after concrete task-to-scene mappings are added.
+`robocasa` and `genesis` validate their experiment contracts by default. They only run full simulator checks after concrete task-to-scene mappings are added.
 
-Run the release smoke test from a clean virtual environment:
+Run the release check from a clean virtual environment:
 
 ```bash
 python scripts/release_smoke.py
@@ -114,12 +108,12 @@ python scripts/release_smoke.py
 ## What Is Included In v0.1
 
 - Core benchmark API: load suite, load policy, run episodes, collect metrics, save replay videos, export datasets, generate reports.
-- Engine adapters: dummy/local, ManiSkill, MuJoCo, and experimental RoboCasa/Genesis adapters with explicit validation contracts.
+- Engine adapters: ManiSkill, MuJoCo, and experimental RoboCasa/Genesis adapters with explicit validation contracts.
 - Task YAML DSL for tabletop, warehouse, articulated-object, and stress-test suites.
-- Policy adapters: random, scripted, LeRobot, OpenVLA, robomimic, and diffusion. External policy adapters accept `NYSSA_LEROBOT_POLICY`, `NYSSA_OPENVLA_POLICY`, `NYSSA_ROBOMIMIC_POLICY`, or `NYSSA_DIFFUSION_POLICY` as `module:factory` entry points.
+- Policy adapters: random, LeRobot, OpenVLA, robomimic, and diffusion. External policy adapters accept `NYSSA_LEROBOT_POLICY`, `NYSSA_OPENVLA_POLICY`, `NYSSA_ROBOMIMIC_POLICY`, or `NYSSA_DIFFUSION_POLICY` as `module:factory` entry points.
 - Failure taxonomy and aggregate metrics.
 - HTML reports and JSON metrics.
-- Policy comparison reports, sim-to-real readiness scores, and local leaderboard export.
+- Policy comparison reports, sim-to-real readiness scores, and leaderboard export.
 - Static leaderboard shell, protocol draft, scorecard structure, Docker files, and plugin API.
 - CLI, docs, examples, and tests.
 

@@ -1,9 +1,9 @@
 # Getting Started
 
-NyssaBench evaluates robot policies through a simulator adapter. Use the dummy engine for installation checks, then switch to ManiSkill or MuJoCo once those simulators are installed.
+NyssaBench evaluates robot policies through a simulator adapter. Install ManiSkill or MuJoCo before running benchmark episodes.
 
 ```bash
-pip install -e ".[dev]"
-nyssa run --suite tabletop_manipulation_v0 --engine dummy --policy scripted --episodes 5 --out runs/quickstart
+pip install -e ".[dev,mujoco]"
+nyssa run --suite mujoco_control_v0 --engine mujoco --policy random --episodes 5 --out runs/quickstart
 nyssa report runs/quickstart
 ```

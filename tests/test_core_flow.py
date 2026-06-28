@@ -1,9 +1,57 @@
 from pathlib import Path
+from typing import Any
 
+import numpy as np
 import pytest
 
 from nyssa_bench import PolicyRunner, Suite
+from nyssa_bench.engines.base import NyssaEngine
 from nyssa_bench.policies.robomimic_adapter import RoboMimicPolicy
+from nyssa_bench.plugins import get_plugin_registry
+
+
+class UnitEngine(NyssaEngine):
+    max_steps = 2
+
+    def load_task(self, task_spec: Any) -> None:
+        self.task_spec = task_spec
+
+    def reset(self, seed: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
+        return _observation(), {"seed": seed}
+
+    def step(self, action: Any) -> tuple[dict[str, Any], float, bool, bool, dict[str, Any]]:
+        return _observation(), 1.0, True, False, {
+            "success": True,
+            "completion_time": 1.0,
+            "path_efficiency": 1.0,
+            "grasp_success": True,
+        }
+
+    def render(self) -> Any:
+        return np.zeros((32, 32, 3), dtype=np.uint8)
+
+    def get_state(self) -> dict[str, Any]:
+        return {}
+
+    def close(self) -> None:
+        return None
+
+
+def _observation() -> dict[str, Any]:
+    return {
+        "raw": [0.0],
+        "action_space": {
+            "type": "box",
+            "shape": [1],
+            "low": [-1.0],
+            "high": [1.0],
+            "dtype": "float32",
+        },
+    }
+
+
+def _register_unit_engine() -> None:
+    get_plugin_registry().engines["unit_real"] = UnitEngine
 
 
 def test_suite_loads_tasks():
@@ -23,15 +71,16 @@ def test_suite_loads_tasks():
 
 
 def test_runner_writes_artifacts(tmp_path: Path):
+    _register_unit_engine()
     suite = Suite.load("tabletop_manipulation_v0")
-    runner = PolicyRunner(policy="scripted", engine="dummy", episodes=2, seed=123, out=tmp_path)
+    runner = PolicyRunner(policy="random", engine="unit_real", episodes=2, seed=123, out=tmp_path)
     report = runner.evaluate(suite)
 
     assert report.summary["episodes"] == 10
     assert 0.0 <= report.summary["success_rate"] <= 1.0
     assert len(report.summary["success_rate_ci95"]) == 2
-    assert report.summary["benchmark_tier"] == "smoke"
-    assert report.summary["public_claim"] is False
+    assert report.summary["benchmark_tier"] == "real"
+    assert report.summary["public_claim"] is True
     assert "pick_cube" in report.summary["per_task"]
     assert "success_rate_ci95" in report.summary["per_task"]["pick_cube"]
     assert 0.0 <= report.summary["sim_to_real_score"] <= 1.0
@@ -54,6 +103,7 @@ def test_runner_writes_artifacts(tmp_path: Path):
 
 
 def test_runner_loads_duck_typed_policy_file(tmp_path: Path):
+    _register_unit_engine()
     policy_path = tmp_path / "user_policy.py"
     policy_path.write_text(
         """
@@ -65,13 +115,12 @@ class PolicyAdapter:
     )
 
     suite = Suite.load("tabletop_manipulation_v0")
-    runner = PolicyRunner(policy=str(policy_path), engine="dummy", episodes=1, seed=123)
+    runner = PolicyRunner(policy=str(policy_path), engine="unit_real", episodes=1, seed=123)
     report = runner.evaluate(suite)
 
     assert report.summary["episodes"] == 5
 
 
-def test_external_policy_fallback_rejects_real_observations():
-    policy = RoboMimicPolicy()
+def test_external_policy_requires_real_model():
     with pytest.raises(RuntimeError, match="NYSSA_ROBOMIMIC_POLICY"):
-        policy.act({"raw": [0.0, 1.0]})
+        RoboMimicPolicy()

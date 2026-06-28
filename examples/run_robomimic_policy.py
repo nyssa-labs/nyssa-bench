@@ -12,6 +12,6 @@ def load_robomimic_checkpoint(path: str):
 
 
 model = load_robomimic_checkpoint("checkpoints/robomimic_policy.pth")
-suite = Suite.load("tabletop_manipulation_v0")
-runner = PolicyRunner(policy=RoboMimicPolicy(model), engine="dummy", episodes=5, out="runs/robomimic_example")
+suite = Suite.load("maniskill_smoke_v0")
+runner = PolicyRunner(policy=RoboMimicPolicy(model), engine="maniskill", episodes=5, out="runs/robomimic_example")
 runner.evaluate(suite)

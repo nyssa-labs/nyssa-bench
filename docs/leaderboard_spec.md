@@ -1,6 +1,6 @@
 # Leaderboard Spec
 
-The local leaderboard export is a JSON array sorted by success rate and sim-to-real score.
+The leaderboard export is a JSON array sorted by success rate and sim-to-real score.
 
 Each entry contains:
 

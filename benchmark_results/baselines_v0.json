@@ -3,7 +3,6 @@
   "status": "real_runs_required",
   "public_claim": false,
   "notes": [
-    "Dummy-engine runs are smoke tests only and are not included as public benchmark results.",
     "Populate this file from generated metrics.json artifacts after running the real simulator suites below."
   ],
   "required_suites": [
@@ -22,10 +21,9 @@
       "suite": "mujoco_control_v0",
       "engine": "mujoco",
       "episodes_per_task_minimum": 100,
-      "policies": ["random", "scripted"],
+      "policies": ["random"],
       "commands": [
-        "nyssa run --suite mujoco_control_v0 --engine mujoco --policy random --episodes 100 --seed 42 --out runs/mujoco_random_v0",
-        "nyssa run --suite mujoco_control_v0 --engine mujoco --policy scripted --episodes 100 --seed 42 --out runs/mujoco_scripted_v0"
+        "nyssa run --suite mujoco_control_v0 --engine mujoco --policy random --episodes 100 --seed 42 --out runs/mujoco_random_v0"
       ]
     }
   ],

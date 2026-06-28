@@ -29,7 +29,7 @@ def main(argv: list[str] | None = None) -> int:
 
     run_parser = subparsers.add_parser("run")
     run_parser.add_argument("--suite", required=True)
-    run_parser.add_argument("--engine", default="dummy")
+    run_parser.add_argument("--engine", default="maniskill")
     run_parser.add_argument("--policy", default="random")
     run_parser.add_argument("--episodes", type=int, default=10)
     run_parser.add_argument("--seed", type=int, default=0)
@@ -161,7 +161,7 @@ def _capture_replay_default(engine: str, no_replay: bool, capture_replay: bool) 
         return False
     if capture_replay:
         return True
-    return engine in {"dummy", "local"}
+    return False
 
 
 def _load_episodes(run_dir: Path):

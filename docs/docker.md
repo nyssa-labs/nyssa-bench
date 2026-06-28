@@ -1,6 +1,6 @@
 # Docker
 
-NyssaBench includes Docker assets for reproducible local and CI smoke runs.
+NyssaBench includes Docker assets for reproducible simulator-backed runs.
 
 ```bash
 docker build -f docker/Dockerfile -t nyssa-bench:core .

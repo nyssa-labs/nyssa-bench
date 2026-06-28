@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from nyssa_bench.engines.base import NyssaEngine
-from nyssa_bench.engines.dummy_adapter import DummyEngine
 from nyssa_bench.engines.genesis_adapter import GenesisEngine
 from nyssa_bench.engines.maniskill_adapter import ManiSkillEngine
 from nyssa_bench.engines.mujoco_adapter import MuJoCoEngine
@@ -12,13 +11,10 @@ from nyssa_bench.policies.lerobot_adapter import LeRobotPolicy
 from nyssa_bench.policies.openvla_adapter import OpenVLAPolicy
 from nyssa_bench.policies.random_policy import RandomPolicy
 from nyssa_bench.policies.robomimic_adapter import RoboMimicPolicy
-from nyssa_bench.policies.scripted_policy import ScriptedPolicy
 from nyssa_bench.plugins import get_plugin_registry
 
 
 ENGINE_REGISTRY: dict[str, type[NyssaEngine]] = {
-    "dummy": DummyEngine,
-    "local": DummyEngine,
     "maniskill": ManiSkillEngine,
     "mujoco": MuJoCoEngine,
     "genesis": GenesisEngine,
@@ -27,8 +23,6 @@ ENGINE_REGISTRY: dict[str, type[NyssaEngine]] = {
 
 POLICY_REGISTRY: dict[str, type[Policy]] = {
     "random": RandomPolicy,
-    "scripted": ScriptedPolicy,
-    "oracle": ScriptedPolicy,
     "lerobot": LeRobotPolicy,
     "robomimic": RoboMimicPolicy,
     "diffusion": DiffusionPolicyAdapter,

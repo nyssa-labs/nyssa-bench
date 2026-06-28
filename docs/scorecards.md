@@ -2,7 +2,7 @@
 
 Public scorecards should be generated from committed task specs, fixed seeds, and published run artifacts.
 
-`benchmark_results/baselines_v0.json` is a real-baseline manifest until simulator runs are generated. Dummy-engine runs are smoke tests only and must not be published as benchmark scorecards.
+`benchmark_results/baselines_v0.json` is a real-baseline manifest until simulator runs are generated.
 
 Generate public baseline artifacts from real simulator suites:
 

@@ -1,3 +1,0 @@
-engine_id: dummy
-description: Deterministic local engine for tests and first-run demos.
-gymnasium_compatible: true

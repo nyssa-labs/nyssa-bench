@@ -3,7 +3,7 @@
 ## v0.1
 
 - ManiSkill adapter boundary
-- Dummy/local engine
+- Real simulator adapter validation
 - Task YAML spec
 - Warehouse and tabletop manipulation suites
 - Failure metrics
