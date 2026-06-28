@@ -11,6 +11,8 @@ success:
     mujoco: InvertedPendulum-v5
   render_mode: rgb_array
   max_steps: 50
+  success_metric: survival_steps
+  min_success_steps: 50
 randomization:
   seed: true
 metrics: [success_rate, completion_time, safety_violation_rate]

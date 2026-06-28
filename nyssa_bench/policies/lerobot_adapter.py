@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from nyssa_bench.policies.base import Policy
-from nyssa_bench.policies.loaders import call_model, load_callable_from_env
+from nyssa_bench.policies.loaders import call_model, dummy_state_fallback_action, load_callable_from_env
 
 
 class LeRobotPolicy(Policy):
@@ -14,7 +14,11 @@ class LeRobotPolicy(Policy):
 
     def act(self, observation: dict[str, Any]) -> Any:
         if self.model is None:
-            state = observation.get("state", {})
-            distance = float(state.get("distance", 0.0))
-            return max(min(distance * 0.5, 0.25), -0.25)
+            return dummy_state_fallback_action(
+                observation,
+                gain=0.5,
+                limit=0.25,
+                policy_name="LeRobotPolicy",
+                env_var="NYSSA_LEROBOT_POLICY",
+            )
         return call_model(self.model, observation, ("select_action", "predict_action", "act"))

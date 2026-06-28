@@ -35,7 +35,10 @@ class ManiSkillEngine(NyssaEngine):
         self._require_env()
         action = self._coerce_action(action)
         observation, reward, terminated, truncated, info = self.env.step(action)
-        return {"raw": observation}, float(reward), bool(terminated), bool(truncated), dict(info)
+        info = dict(info)
+        info["success"] = _extract_success(info, self.task_spec)
+        info.setdefault("failure_label", None if info["success"] else _default_failure_label(self.task_spec))
+        return {"raw": observation}, float(reward), bool(terminated), bool(truncated), info
 
     def render(self) -> Any:
         self._require_env()
@@ -77,3 +80,42 @@ def _resolve_env_id(task_spec: TaskSpec, engine: str) -> str:
     if isinstance(engine_env_ids, dict) and engine_env_ids.get(engine):
         return str(engine_env_ids[engine])
     return str(task_spec.success.get(f"{engine}_env_id") or task_spec.task_id)
+
+
+def _extract_success(info: dict[str, Any], task_spec: TaskSpec | None) -> bool:
+    configured_keys = []
+    if task_spec is not None:
+        configured = task_spec.success.get("success_info_keys", [])
+        if isinstance(configured, str):
+            configured_keys.append(configured)
+        elif isinstance(configured, list):
+            configured_keys.extend(str(key) for key in configured)
+    for key in [*configured_keys, "success", "is_success", "success_once"]:
+        if key in info:
+            return _as_bool(info[key])
+    return False
+
+
+def _as_bool(value: Any) -> bool:
+    if hasattr(value, "detach"):
+        value = value.detach()
+    if hasattr(value, "cpu"):
+        value = value.cpu()
+    if hasattr(value, "numpy"):
+        value = value.numpy()
+    if hasattr(value, "item"):
+        try:
+            return bool(value.item())
+        except ValueError:
+            pass
+    if hasattr(value, "all"):
+        return bool(value.all())
+    return bool(value)
+
+
+def _default_failure_label(task_spec: TaskSpec | None) -> str | None:
+    if task_spec is None or not task_spec.failure_labels:
+        return None
+    if "missed_target" in task_spec.failure_labels:
+        return "missed_target"
+    return task_spec.failure_labels[0]

@@ -9,6 +9,7 @@ objects:
 success:
   engine_env_ids:
     maniskill: PickCube-v1
+  success_info_keys: [success, is_success, success_once]
   render_mode: rgb_array
   max_steps: 80
 randomization:

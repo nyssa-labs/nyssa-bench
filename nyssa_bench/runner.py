@@ -76,6 +76,8 @@ class PolicyRunner:
         self.episode_results = results
         summary = aggregate_episodes(results)
         summary["sim_to_real_score"] = score_summary(summary)
+        summary["benchmark_tier"] = "smoke" if self.engine_name == "dummy" else "real"
+        summary["public_claim"] = self.engine_name != "dummy"
         self.run_metadata = {
             "run_id": make_run_id(suite.suite_id, self._policy_name()),
             "suite_id": suite.suite_id,

@@ -19,6 +19,7 @@ Every published result must include:
 - seed range
 - number of episodes
 - aggregate metrics
+- per-task success rates and 95% confidence intervals
 - failure taxonomy distribution
 - replay or video availability
 - run artifact archive
@@ -30,3 +31,5 @@ Compare policies only when task specs, engine, randomization settings, and seed 
 ## Limitations
 
 The v0 score is not a calibrated sim-to-real predictor. Treat it as a readiness proxy until validated against real robot outcomes.
+
+The dummy engine is excluded from public scorecards. It is only a deterministic smoke-test backend for CI, docs, and local workflow validation.

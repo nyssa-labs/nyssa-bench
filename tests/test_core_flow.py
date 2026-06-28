@@ -1,6 +1,9 @@
 from pathlib import Path
 
+import pytest
+
 from nyssa_bench import PolicyRunner, Suite
+from nyssa_bench.policies.robomimic_adapter import RoboMimicPolicy
 
 
 def test_suite_loads_tasks():
@@ -26,6 +29,11 @@ def test_runner_writes_artifacts(tmp_path: Path):
 
     assert report.summary["episodes"] == 10
     assert 0.0 <= report.summary["success_rate"] <= 1.0
+    assert len(report.summary["success_rate_ci95"]) == 2
+    assert report.summary["benchmark_tier"] == "smoke"
+    assert report.summary["public_claim"] is False
+    assert "pick_cube" in report.summary["per_task"]
+    assert "success_rate_ci95" in report.summary["per_task"]["pick_cube"]
     assert 0.0 <= report.summary["sim_to_real_score"] <= 1.0
     assert (tmp_path / "config.yaml").exists()
     assert (tmp_path / "run.yaml").exists()
@@ -61,3 +69,9 @@ class PolicyAdapter:
     report = runner.evaluate(suite)
 
     assert report.summary["episodes"] == 5
+
+
+def test_external_policy_fallback_rejects_real_observations():
+    policy = RoboMimicPolicy()
+    with pytest.raises(RuntimeError, match="NYSSA_ROBOMIMIC_POLICY"):
+        policy.act({"raw": [0.0, 1.0]})

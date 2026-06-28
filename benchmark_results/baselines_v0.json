@@ -1,20 +1,39 @@
 {
-  "benchmark": "NyssaBench local dummy baseline",
-  "date": "2026-06-23",
-  "engine": "dummy",
-  "suite": "tabletop_manipulation_v0",
-  "results": [
+  "benchmark": "NyssaBench real baseline manifest",
+  "status": "real_runs_required",
+  "public_claim": false,
+  "notes": [
+    "Dummy-engine runs are smoke tests only and are not included as public benchmark results.",
+    "Populate this file from generated metrics.json artifacts after running the real simulator suites below."
+  ],
+  "required_suites": [
     {
-      "policy": "scripted",
-      "episodes_per_task": 10,
-      "status": "example_scorecard",
-      "notes": "Regenerate with scripts/make_demo_report.py or nyssa run before publishing real numbers."
+      "suite": "maniskill_smoke_v0",
+      "engine": "maniskill",
+      "episodes_per_task_minimum": 100,
+      "policies": ["random", "robomimic", "diffusion"],
+      "commands": [
+        "nyssa run --suite maniskill_smoke_v0 --engine maniskill --policy random --episodes 100 --seed 42 --out runs/maniskill_random_v0",
+        "nyssa run --suite maniskill_smoke_v0 --engine maniskill --policy robomimic --episodes 100 --seed 42 --out runs/maniskill_robomimic_v0",
+        "nyssa run --suite maniskill_smoke_v0 --engine maniskill --policy diffusion --episodes 100 --seed 42 --out runs/maniskill_diffusion_v0"
+      ]
     },
     {
-      "policy": "random",
-      "episodes_per_task": 10,
-      "status": "example_scorecard",
-      "notes": "Placeholder scorecard structure; not a public benchmark claim."
+      "suite": "mujoco_control_v0",
+      "engine": "mujoco",
+      "episodes_per_task_minimum": 100,
+      "policies": ["random", "scripted"],
+      "commands": [
+        "nyssa run --suite mujoco_control_v0 --engine mujoco --policy random --episodes 100 --seed 42 --out runs/mujoco_random_v0",
+        "nyssa run --suite mujoco_control_v0 --engine mujoco --policy scripted --episodes 100 --seed 42 --out runs/mujoco_scripted_v0"
+      ]
     }
-  ]
+  ],
+  "acceptance_criteria": {
+    "same_seed_protocol": true,
+    "per_task_success_rate_required": true,
+    "success_rate_ci95_required": true,
+    "failure_counts_required": true,
+    "run_artifacts_required": ["config.yaml", "run.yaml", "environment.json", "package_versions.json", "git_info.json", "metrics.json", "episodes.jsonl", "report.html"]
+  }
 }

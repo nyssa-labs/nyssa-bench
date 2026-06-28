@@ -23,10 +23,13 @@ class Report:
 
     def to_html(self) -> str:
         success_rate = float(self.summary.get("success_rate", 0.0)) * 100
+        success_ci = self.summary.get("success_rate_ci95", [0.0, 0.0])
         sim_to_real = float(self.summary.get("sim_to_real_score", 0.0))
         primary_failure = self.summary.get("primary_failure_mode") or "none"
+        benchmark_tier = self.summary.get("benchmark_tier", "unknown")
         metrics = self.summary.get("metrics", {})
         failure_counts = self.summary.get("failure_counts", {})
+        per_task = self.summary.get("per_task", {})
         return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -50,11 +53,16 @@ class Report:
 
   <section>
     <div class="metric"><div>Success rate</div><div class="value">{success_rate:.1f}%</div></div>
+    <div class="metric"><div>95% CI</div><div class="value">{_format_ci_percent(success_ci)}</div></div>
     <div class="metric"><div>Sim-to-real score</div><div class="value">{sim_to_real:.3f}</div></div>
     <div class="metric"><div>Primary failure mode</div><div class="value">{html.escape(str(primary_failure))}</div></div>
+    <div class="metric"><div>Benchmark tier</div><div class="value">{html.escape(str(benchmark_tier))}</div></div>
   </section>
 
-  <h2>Task Success And Safety</h2>
+  <h2>Per-Task Results</h2>
+  {_per_task_table(per_task)}
+
+  <h2>Aggregate Metrics</h2>
   {_table(metrics)}
 
   <h2>Failure Clusters</h2>
@@ -79,3 +87,32 @@ def _format_value(value: Any) -> str:
     if isinstance(value, float):
         return f"{value:.4f}"
     return str(value)
+
+
+def _format_ci_percent(value: Any) -> str:
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        return "n/a"
+    return f"{float(value[0]) * 100:.1f}-{float(value[1]) * 100:.1f}%"
+
+
+def _per_task_table(data: dict[str, Any]) -> str:
+    if not data:
+        return "<p>No per-task data.</p>"
+    rows = []
+    for task_id, summary in sorted(data.items()):
+        task_summary = dict(summary)
+        success_rate = float(task_summary.get("success_rate", 0.0)) * 100
+        rows.append(
+            "<tr>"
+            f"<td>{html.escape(str(task_id))}</td>"
+            f"<td>{int(task_summary.get('episodes', 0))}</td>"
+            f"<td>{success_rate:.1f}%</td>"
+            f"<td>{html.escape(_format_ci_percent(task_summary.get('success_rate_ci95', [])))}</td>"
+            f"<td>{html.escape(str(task_summary.get('primary_failure_mode') or 'none'))}</td>"
+            "</tr>"
+        )
+    return (
+        "<table><thead><tr><th>Task</th><th>Episodes</th><th>Success</th>"
+        "<th>95% CI</th><th>Primary failure</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
+    )

@@ -39,3 +39,21 @@ def call_model(model: Any, observation: dict[str, Any], method_names: tuple[str,
     if callable(model):
         return model(observation)
     raise TypeError(f"Model must be callable or implement one of: {', '.join(method_names)}")
+
+
+def dummy_state_fallback_action(
+    observation: dict[str, Any],
+    *,
+    gain: float,
+    limit: float,
+    policy_name: str,
+    env_var: str,
+) -> float:
+    state = observation.get("state")
+    if not isinstance(state, dict) or "distance" not in state:
+        raise RuntimeError(
+            f"{policy_name} requires {env_var}=module:factory for real simulator observations. "
+            "The built-in fallback only supports the dummy smoke-test engine."
+        )
+    distance = float(state.get("distance", 0.0))
+    return max(min(distance * gain, limit), -limit)

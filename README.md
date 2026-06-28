@@ -4,7 +4,7 @@
 
 Run reproducible robot-policy benchmarks, stress-test failures, and export simulation data for training.
 
-NyssaBench is not a simulator. It is an evaluation and failure-analysis layer that sits on top of robotics simulators such as ManiSkill and MuJoCo, with experimental adapter boundaries for RoboCasa and Genesis. The v0.1 scaffold ships with a deterministic dummy engine so the full benchmark loop can run in minutes without a heavy simulator install.
+NyssaBench is not a simulator. It is an evaluation and failure-analysis layer that sits on top of robotics simulators such as ManiSkill and MuJoCo, with experimental adapter boundaries for RoboCasa and Genesis. The v0.1 scaffold ships with a deterministic dummy engine so the full benchmark loop can run in minutes without a heavy simulator install. Dummy-engine runs are smoke tests only; public scorecards should use real simulator suites.
 
 ```python
 from nyssa_bench import PolicyRunner, Suite

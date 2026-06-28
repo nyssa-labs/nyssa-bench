@@ -13,6 +13,8 @@ class MuJoCoEngine(NyssaEngine):
         self.env: Any | None = None
         self.task_spec: TaskSpec | None = None
         self.max_steps = 1000
+        self.episode_return = 0.0
+        self.elapsed_steps = 0
 
     def load_task(self, task_spec: TaskSpec) -> None:
         self.task_spec = task_spec
@@ -28,6 +30,8 @@ class MuJoCoEngine(NyssaEngine):
 
     def reset(self, seed: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
         self._require_env()
+        self.episode_return = 0.0
+        self.elapsed_steps = 0
         observation, info = self.env.reset(seed=seed)
         return {"raw": observation}, dict(info)
 
@@ -35,12 +39,23 @@ class MuJoCoEngine(NyssaEngine):
         self._require_env()
         action = self._coerce_action(action)
         observation, reward, terminated, truncated, info = self.env.step(action)
+        self.episode_return += float(reward)
+        self.elapsed_steps = int(getattr(self.env, "_elapsed_steps", self.elapsed_steps + 1))
         info = dict(info)
-        info.setdefault("completion_time", float(getattr(self.env, "_elapsed_steps", 0.0)))
+        info.setdefault("completion_time", float(self.elapsed_steps))
         info.setdefault("collision_count", 0.0)
         info.setdefault("path_efficiency", max(0.0, min(1.0, (float(reward) + 10.0) / 10.0)))
-        info.setdefault("success", bool(info.get("success", False)))
-        return {"raw": observation}, float(reward), bool(terminated), bool(truncated), dict(info)
+        info["episode_return"] = self.episode_return
+        info["success"] = _extract_success(
+            info=info,
+            reward=float(reward),
+            episode_return=self.episode_return,
+            elapsed_steps=self.elapsed_steps,
+            terminated=bool(terminated),
+            task_spec=self.task_spec,
+        )
+        info.setdefault("failure_label", None if info["success"] else _default_failure_label(self.task_spec))
+        return {"raw": observation}, float(reward), bool(terminated), bool(truncated), info
 
     def render(self) -> Any:
         self._require_env()
@@ -82,3 +97,62 @@ def _resolve_env_id(task_spec: TaskSpec, engine: str) -> str:
     if isinstance(engine_env_ids, dict) and engine_env_ids.get(engine):
         return str(engine_env_ids[engine])
     return str(task_spec.success.get(f"{engine}_env_id") or task_spec.task_id)
+
+
+def _extract_success(
+    *,
+    info: dict[str, Any],
+    reward: float,
+    episode_return: float,
+    elapsed_steps: int,
+    terminated: bool,
+    task_spec: TaskSpec | None,
+) -> bool:
+    configured_keys = []
+    if task_spec is not None:
+        configured = task_spec.success.get("success_info_keys", [])
+        if isinstance(configured, str):
+            configured_keys.append(configured)
+        elif isinstance(configured, list):
+            configured_keys.extend(str(key) for key in configured)
+    for key in [*configured_keys, "success", "is_success"]:
+        if key in info:
+            return _as_bool(info[key])
+
+    success_config = task_spec.success if task_spec is not None else {}
+    metric = str(success_config.get("success_metric", "")).lower()
+    if metric in {"reward_threshold", "final_reward_threshold"} or "reward_threshold" in success_config:
+        return reward >= float(success_config.get("reward_threshold", 0.0))
+    if metric in {"return_threshold", "episode_return_threshold"} or "return_threshold" in success_config:
+        return episode_return >= float(success_config.get("return_threshold", 0.0))
+    if metric in {"survival_steps", "min_episode_steps"} or "min_success_steps" in success_config:
+        min_steps = int(success_config.get("min_success_steps", success_config.get("max_steps", 0)))
+        return elapsed_steps >= min_steps and not terminated
+    return False
+
+
+def _as_bool(value: Any) -> bool:
+    if hasattr(value, "detach"):
+        value = value.detach()
+    if hasattr(value, "cpu"):
+        value = value.cpu()
+    if hasattr(value, "numpy"):
+        value = value.numpy()
+    if hasattr(value, "item"):
+        try:
+            return bool(value.item())
+        except ValueError:
+            pass
+    if hasattr(value, "all"):
+        return bool(value.all())
+    return bool(value)
+
+
+def _default_failure_label(task_spec: TaskSpec | None) -> str | None:
+    if task_spec is None or not task_spec.failure_labels:
+        return None
+    if "missed_target" in task_spec.failure_labels:
+        return "missed_target"
+    if "unstable_contact" in task_spec.failure_labels:
+        return "unstable_contact"
+    return task_spec.failure_labels[0]

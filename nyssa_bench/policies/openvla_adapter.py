@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from nyssa_bench.policies.base import Policy
-from nyssa_bench.policies.loaders import call_model, load_callable_from_env
+from nyssa_bench.policies.loaders import call_model, dummy_state_fallback_action, load_callable_from_env
 
 
 class OpenVLAPolicy(Policy):
@@ -13,7 +13,11 @@ class OpenVLAPolicy(Policy):
 
     def act(self, observation: dict[str, Any]) -> Any:
         if self.model is None:
-            state = observation.get("state", {})
-            distance = float(state.get("distance", 0.0))
-            return max(min(distance * 0.55, 0.3), -0.3)
+            return dummy_state_fallback_action(
+                observation,
+                gain=0.55,
+                limit=0.3,
+                policy_name="OpenVLAPolicy",
+                env_var="NYSSA_OPENVLA_POLICY",
+            )
         return call_model(self.model, observation, ("predict_action", "select_action", "act"))
