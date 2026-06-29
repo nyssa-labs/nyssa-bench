@@ -16,7 +16,7 @@ def load_run_summary(run_dir: str | Path) -> dict[str, Any]:
         raise FileNotFoundError(f"Run metrics not found: {metrics_path}")
 
     summary = json.loads(metrics_path.read_text(encoding="utf-8"))
-    summary.setdefault("run_dir", str(run_dir))
+    summary.setdefault("run_dir", run_dir.as_posix())
     if config_path.exists():
         summary["config_path"] = str(config_path)
     summary["sim_to_real_score"] = float(summary.get("sim_to_real_score", score_summary(summary)))

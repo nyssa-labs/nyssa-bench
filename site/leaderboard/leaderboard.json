@@ -1,0 +1,28 @@
+[
+  {
+    "rank": 1,
+    "run_dir": "runs/mujoco_random_v0",
+    "success_rate": 0.01,
+    "success_rate_ci95": [
+      0.003406618437715286,
+      0.02898349336233983
+    ],
+    "sim_to_real_score": 0.505,
+    "benchmark_tier": "real",
+    "public_claim": true,
+    "primary_failure_mode": "missed_target"
+  },
+  {
+    "rank": 2,
+    "run_dir": "runs/maniskill_random_v0",
+    "success_rate": 0.0,
+    "success_rate_ci95": [
+      0.0,
+      0.012642971224546036
+    ],
+    "sim_to_real_score": 0.5,
+    "benchmark_tier": "real",
+    "public_claim": true,
+    "primary_failure_mode": "missed_target"
+  }
+]

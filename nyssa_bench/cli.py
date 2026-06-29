@@ -15,6 +15,7 @@ from nyssa_bench.datasets.export_jsonl import export_jsonl
 from nyssa_bench.datasets.export_lerobot import export_lerobot
 from nyssa_bench.datasets.export_parquet import export_parquet
 from nyssa_bench.reports.comparison import compare_runs, save_comparison_report, save_leaderboard
+from nyssa_bench.reports.scorecard import write_scorecard
 from nyssa_bench.runner import PolicyRunner
 
 
@@ -52,6 +53,14 @@ def main(argv: list[str] | None = None) -> int:
     leaderboard_parser = subparsers.add_parser("leaderboard")
     leaderboard_parser.add_argument("runs", nargs="+")
     leaderboard_parser.add_argument("--out", required=True)
+
+    scorecard_parser = subparsers.add_parser("scorecard")
+    scorecard_parser.add_argument("runs", nargs="+")
+    scorecard_parser.add_argument("--out", default="benchmark_results/baselines_v0.json")
+    scorecard_parser.add_argument("--benchmark", default="NyssaBench v0 baselines")
+    scorecard_parser.add_argument("--date")
+    scorecard_parser.add_argument("--comparison-out", default="reports/real_baselines_v0.html")
+    scorecard_parser.add_argument("--leaderboard-out", default="site/leaderboard/leaderboard.json")
 
     validate_parser = subparsers.add_parser("validate")
     validate_parser.add_argument("target")
@@ -130,6 +139,19 @@ def main(argv: list[str] | None = None) -> int:
         comparison = compare_runs(args.runs)
         out = save_leaderboard(comparison, args.out)
         print(f"leaderboard: {out}")
+        return 0
+
+    if args.command == "scorecard":
+        paths = write_scorecard(
+            args.runs,
+            out=args.out,
+            benchmark=args.benchmark,
+            scorecard_date=args.date,
+            comparison_report=args.comparison_out,
+            leaderboard=args.leaderboard_out,
+        )
+        for label, path in paths.items():
+            print(f"{label}: {path}")
         return 0
 
     if args.command == "validate":

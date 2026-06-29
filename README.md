@@ -64,6 +64,7 @@ nyssa export --run runs/random_mujoco --format lerobot
 nyssa export --run runs/random_mujoco --format jsonl
 nyssa compare runs/random_mujoco runs/other_policy --out reports/compare.html
 nyssa leaderboard runs/random_mujoco runs/other_policy --out reports/leaderboard.json
+nyssa scorecard runs/random_mujoco runs/other_policy --out benchmark_results/baselines_v0.json
 ```
 
 The run folder contains:
