@@ -23,5 +23,5 @@
 
 - OpenVLA adapter
 - RoboCasa and Genesis experiments
-- sim-to-real score prototype
+- prototype reliability score and future real-robot calibration
 - hosted benchmark leaderboard export

@@ -20,7 +20,7 @@ def test_build_scorecard_from_real_run_artifacts(tmp_path: Path):
 
     assert scorecard["benchmark"] == "Test scorecard"
     assert scorecard["date"] == "2026-06-29"
-    assert scorecard["public_claim"] is True
+    assert scorecard["public_claim"] is False
     assert scorecard["results"][0]["suite"] == "mujoco_control_v0"
     assert scorecard["results"][0]["policy"] == "random"
     assert scorecard["results"][0]["per_task"]["mujoco_reacher"]["success_count"] == 1
@@ -96,9 +96,12 @@ def _make_run(run_dir: Path, *, policy: str, success_rate: float = 0.1) -> Path:
         "success_rate_ci95": [0.0, 0.3],
         "failure_counts": {"missed_target": 9},
         "primary_failure_mode": "missed_target",
-        "sim_to_real_score": 0.55,
+        "prototype_reliability_score": 0.55,
+        "score_kind": "prototype_reliability_heuristic",
+        "sim_to_real_score_deprecated": True,
         "benchmark_tier": "real",
         "public_claim": True,
+        "public_claim_validation": {"status": "validated", "failures": []},
         "per_task": {
             "mujoco_reacher": {
                 "episodes": 10,
@@ -109,6 +112,16 @@ def _make_run(run_dir: Path, *, policy: str, success_rate: float = 0.1) -> Path:
                 "primary_failure_mode": "missed_target",
                 "metrics": {"completion_time": 1.0},
                 "metric_ci95": {"completion_time": [1.0, 1.0]},
+            }
+        },
+        "per_seed": {
+            "42": {
+                "episodes": 10,
+                "success_count": int(success_rate * 10),
+                "success_rate": success_rate,
+                "success_rate_ci95": [0.0, 0.3],
+                "failure_counts": {"missed_target": 9},
+                "primary_failure_mode": "missed_target",
             }
         },
     }

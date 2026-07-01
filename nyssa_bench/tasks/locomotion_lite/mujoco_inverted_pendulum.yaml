@@ -16,4 +16,4 @@ success:
 randomization:
   seed: true
 metrics: [success_rate, completion_time, safety_violation_rate]
-failure_labels: [unstable_contact, joint_limit_failure]
+failure_labels: [unstable_contact, joint_limit_failure, timeout, unknown_failure]

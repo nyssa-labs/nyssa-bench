@@ -1,22 +1,30 @@
 # Installation
 
-Install the package with at least one real simulator backend:
+Use `uv` for the fastest local setup:
 
 ```bash
-pip install -e ".[dev,mujoco]"
+uv sync --extra dev --extra mujoco --extra video --extra reports
+uv run nyssa list-suites
+uv run pytest -q
+uv run ruff check .
 ```
 
 Optional simulator and dataset extras are installed only when needed:
 
 ```bash
-pip install -e ".[maniskill]"
-pip install -e ".[mujoco]"
-pip install -e ".[dataset]"
-pip install -e ".[reports]"
-pip install -e ".[video]"
+uv sync --extra dev --extra maniskill --extra video --extra reports
+uv sync --extra dev --extra mujoco --extra video --extra reports
+uv sync --extra dev --extra dataset --extra reports --extra video
 ```
 
 Use `mujoco` for the lightest real backend path and `maniskill` for manipulation tasks.
+
+If you are not using `uv`, the equivalent pip command is:
+
+```bash
+python -m venv .venv
+python -m pip install -e ".[dev,mujoco,video,reports]"
+```
 
 ## Extras
 

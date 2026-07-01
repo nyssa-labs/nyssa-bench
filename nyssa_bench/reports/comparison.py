@@ -19,7 +19,8 @@ def load_run_summary(run_dir: str | Path) -> dict[str, Any]:
     summary.setdefault("run_dir", run_dir.as_posix())
     if config_path.exists():
         summary["config_path"] = str(config_path)
-    summary["sim_to_real_score"] = float(summary.get("sim_to_real_score", score_summary(summary)))
+    score = float(summary.get("prototype_reliability_score", summary.get("sim_to_real_score", score_summary(summary))))
+    summary["prototype_reliability_score"] = score
     return summary
 
 
@@ -29,7 +30,7 @@ def compare_runs(run_dirs: list[str | Path]) -> dict[str, Any]:
         runs,
         key=lambda item: (
             float(item.get("success_rate", 0.0)),
-            float(item.get("sim_to_real_score", 0.0)),
+            float(item.get("prototype_reliability_score", 0.0)),
         ),
         reverse=True,
     )
@@ -41,9 +42,10 @@ def compare_runs(run_dirs: list[str | Path]) -> dict[str, Any]:
                 "run_dir": item.get("run_dir"),
                 "success_rate": item.get("success_rate", 0.0),
                 "success_rate_ci95": item.get("success_rate_ci95", [0.0, 0.0]),
-                "sim_to_real_score": item.get("sim_to_real_score", 0.0),
+                "prototype_reliability_score": item.get("prototype_reliability_score", 0.0),
                 "benchmark_tier": item.get("benchmark_tier", "unknown"),
                 "public_claim": item.get("public_claim", False),
+                "public_claim_status": (item.get("public_claim_validation") or {}).get("status", "unknown"),
                 "primary_failure_mode": item.get("primary_failure_mode"),
             }
             for index, item in enumerate(ranked)
@@ -72,8 +74,9 @@ def _comparison_html(comparison: dict[str, Any]) -> str:
         f"<td>{html.escape(str(item['run_dir']))}</td>"
         f"<td>{float(item['success_rate']) * 100:.1f}%</td>"
         f"<td>{html.escape(_format_ci_percent(item.get('success_rate_ci95')))}</td>"
-        f"<td>{float(item['sim_to_real_score']):.3f}</td>"
+        f"<td>{float(item['prototype_reliability_score']):.3f}</td>"
         f"<td>{html.escape(str(item.get('benchmark_tier') or 'unknown'))}</td>"
+        f"<td>{html.escape(str(item.get('public_claim_status') or 'unknown'))}</td>"
         f"<td>{html.escape(str(item.get('primary_failure_mode') or 'none'))}</td>"
         "</tr>"
         for item in comparison["ranking"]
@@ -93,7 +96,7 @@ def _comparison_html(comparison: dict[str, Any]) -> str:
   <h1>Policy Comparison</h1>
   <table>
     <thead>
-      <tr><th>Rank</th><th>Run</th><th>Success</th><th>95% CI</th><th>Sim-to-real</th><th>Tier</th><th>Primary failure</th></tr>
+        <tr><th>Rank</th><th>Run</th><th>Success</th><th>95% CI</th><th>Prototype reliability</th><th>Tier</th><th>Claim status</th><th>Primary failure</th></tr>
     </thead>
     <tbody>{rows}</tbody>
   </table>

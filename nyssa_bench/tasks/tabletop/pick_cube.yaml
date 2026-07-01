@@ -8,6 +8,10 @@ objects:
     type: cube
     randomized_pose: true
 success:
+  engine_env_ids:
+    maniskill: PickCube-v1
+  success_info_keys: [success, is_success, success_once]
+  render_mode: rgb_array
   object_lifted: target_cube
   max_time_seconds: 30
   max_collisions: 2
@@ -18,4 +22,4 @@ randomization:
   camera_pose: false
   friction_range: [0.4, 0.9]
 metrics: [success_rate, completion_time, collision_count, grasp_success_rate, recovery_success_rate]
-failure_labels: [bad_grasp, object_slip, missed_target, collision]
+failure_labels: [bad_grasp, object_slip, missed_target, collision, timeout, unknown_failure]

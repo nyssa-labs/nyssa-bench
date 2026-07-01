@@ -6,6 +6,7 @@ import pytest
 
 from nyssa_bench import PolicyRunner, Suite
 from nyssa_bench.engines.base import NyssaEngine
+from nyssa_bench.metrics.failure_mapper import FailureMapper
 from nyssa_bench.policies.robomimic_adapter import RoboMimicPolicy
 from nyssa_bench.plugins import get_plugin_registry
 
@@ -66,6 +67,13 @@ def test_suite_loads_tasks():
     maniskill = Suite.load("maniskill_smoke_v0")
     assert maniskill.tasks[0].success["engine_env_ids"]["maniskill"] == "PickCube-v1"
 
+    focused = Suite.load("maniskill_manipulation_v0")
+    assert [task.task_id for task in focused.tasks] == [
+        "maniskill_pick_cube",
+        "maniskill_stack_cube",
+        "maniskill_push_cube",
+    ]
+
     mujoco = Suite.load("mujoco_control_v0")
     assert mujoco.tasks[0].success["engine_env_ids"]["mujoco"] == "Reacher-v5"
 
@@ -79,11 +87,15 @@ def test_runner_writes_artifacts(tmp_path: Path):
     assert report.summary["episodes"] == 10
     assert 0.0 <= report.summary["success_rate"] <= 1.0
     assert len(report.summary["success_rate_ci95"]) == 2
-    assert report.summary["benchmark_tier"] == "real"
-    assert report.summary["public_claim"] is True
+    assert report.summary["benchmark_tier"] == "prototype"
+    assert report.summary["public_claim"] is False
+    assert "minimum_episodes_per_task" in report.summary["public_claim_validation"]["failures"]
     assert "pick_cube" in report.summary["per_task"]
     assert "success_rate_ci95" in report.summary["per_task"]["pick_cube"]
-    assert 0.0 <= report.summary["sim_to_real_score"] <= 1.0
+    assert report.summary["per_seed"]
+    assert 0.0 <= report.summary["prototype_reliability_score"] <= 1.0
+    assert report.summary["sim_to_real_score_deprecated"] is True
+    assert "unsupported_stressors" in report.summary["stressor_support"]
     assert (tmp_path / "config.yaml").exists()
     assert (tmp_path / "run.yaml").exists()
     assert (tmp_path / "environment.json").exists()
@@ -122,5 +134,40 @@ class PolicyAdapter:
 
 
 def test_external_policy_requires_real_model():
-    with pytest.raises(RuntimeError, match="NYSSA_ROBOMIMIC_POLICY"):
+    from nyssa_bench.policies.openvla_adapter import OpenVLAPolicy
+
+    with pytest.raises(RuntimeError, match="NYSSA_OPENVLA_POLICY"):
+        OpenVLAPolicy()
+
+    from nyssa_bench.policies.bc_policy import BCPolicy
+    from nyssa_bench.policies.scripted_oracle_policy import ScriptedOraclePolicy
+
+    scripted = ScriptedOraclePolicy()
+    action = scripted.act(_observation())
+    assert action is not None
+
+    with pytest.raises(RuntimeError, match="BC checkpoint not found"):
+        BCPolicy()
+
+    with pytest.raises(RuntimeError, match="RoboMimic checkpoint not found"):
         RoboMimicPolicy()
+
+
+def test_failure_mapper_does_not_default_to_first_label():
+    task = Suite.load("maniskill_smoke_v0").tasks[0]
+    classification = FailureMapper().classify({}, task_spec=task, step_count=0)
+
+    assert classification.label == "missed_target"
+    assert classification.source == "mapper"
+
+    unknown_task = task.__class__(
+        task_id="unknown_failure_task",
+        engine=task.engine,
+        robot=task.robot,
+        scene=task.scene,
+        description=task.description,
+        success=task.success,
+        failure_labels=["bad_grasp"],
+    )
+    unknown = FailureMapper().classify({}, task_spec=unknown_task, step_count=0)
+    assert unknown.label == "unknown_failure"

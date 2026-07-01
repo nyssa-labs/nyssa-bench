@@ -7,8 +7,10 @@ FAILURE_LABELS = [
     "occlusion_failure",
     "planner_stuck",
     "joint_limit_failure",
+    "timeout",
     "latency_failure",
     "unstable_contact",
+    "unknown_failure",
     "out_of_distribution_layout",
 ]
 

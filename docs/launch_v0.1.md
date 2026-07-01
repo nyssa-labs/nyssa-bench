@@ -3,11 +3,11 @@
 NyssaBench v0.1 is ready to launch when these checks pass from a clean checkout:
 
 ```bash
-python scripts/release_smoke.py
-python scripts/validate_backend.py maniskill
-python scripts/validate_backend.py mujoco
-python scripts/validate_backend.py robocasa
-python scripts/validate_backend.py genesis
+uv run python scripts/release_smoke.py
+uv run python scripts/validate_backend.py maniskill
+uv run python scripts/validate_backend.py mujoco
+uv run python scripts/validate_backend.py robocasa
+uv run python scripts/validate_backend.py genesis
 ```
 
 Release artifacts:

@@ -7,9 +7,13 @@
       0.003406618437715286,
       0.02898349336233983
     ],
+    "prototype_reliability_score": 0.505,
+    "score_kind": "prototype_reliability_heuristic",
     "sim_to_real_score": 0.505,
-    "benchmark_tier": "real",
-    "public_claim": true,
+    "sim_to_real_score_deprecated": true,
+    "benchmark_tier": "prototype",
+    "public_claim": false,
+    "public_claim_status": "not_public",
     "primary_failure_mode": "missed_target"
   },
   {
@@ -20,9 +24,13 @@
       0.0,
       0.012642971224546036
     ],
+    "prototype_reliability_score": 0.5,
+    "score_kind": "prototype_reliability_heuristic",
     "sim_to_real_score": 0.5,
-    "benchmark_tier": "real",
-    "public_claim": true,
+    "sim_to_real_score_deprecated": true,
+    "benchmark_tier": "prototype",
+    "public_claim": false,
+    "public_claim_status": "not_public",
     "primary_failure_mode": "missed_target"
   }
 ]

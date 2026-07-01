@@ -1,13 +1,14 @@
 {
-  "benchmark": "NyssaBench v0 real random baselines",
+  "benchmark": "NyssaBench v0 random sanity baselines",
   "date": "2026-06-29",
   "status": "generated",
-  "public_claim": true,
+  "public_claim": false,
   "generated_at": "2026-06-29T07:15:28.367867+00:00",
   "notes": [
     "These results are generated from NyssaBench run artifacts on disk.",
-    "Each included run must contain real simulator metadata, metrics, episodes, and report artifacts.",
-    "Random policies are baseline sanity checks, not strong learned-policy results."
+    "Public claims require the run-level validation gate to pass.",
+    "Random policies are baseline sanity checks, not strong learned-policy results.",
+    "This committed artifact predates public_claim_validation and should be regenerated before publication."
   ],
   "results": [
     {
@@ -26,9 +27,18 @@
         0.0,
         0.012642971224546036
       ],
+      "prototype_reliability_score": 0.5,
+      "score_kind": "prototype_reliability_heuristic",
       "sim_to_real_score": 0.5,
-      "benchmark_tier": "real",
-      "public_claim": true,
+      "sim_to_real_score_deprecated": true,
+      "benchmark_tier": "prototype",
+      "public_claim": false,
+      "public_claim_validation": {
+        "status": "not_public",
+        "failures": [
+          "legacy_artifact_missing_validation"
+        ]
+      },
       "primary_failure_mode": "missed_target",
       "failure_counts": {
         "missed_target": 200,
@@ -254,9 +264,18 @@
         0.003406618437715286,
         0.02898349336233983
       ],
+      "prototype_reliability_score": 0.505,
+      "score_kind": "prototype_reliability_heuristic",
       "sim_to_real_score": 0.505,
-      "benchmark_tier": "real",
-      "public_claim": true,
+      "sim_to_real_score_deprecated": true,
+      "benchmark_tier": "prototype",
+      "public_claim": false,
+      "public_claim_validation": {
+        "status": "not_public",
+        "failures": [
+          "legacy_artifact_missing_validation"
+        ]
+      },
       "primary_failure_mode": "missed_target",
       "failure_counts": {
         "missed_target": 197,

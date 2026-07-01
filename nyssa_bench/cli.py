@@ -3,20 +3,27 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Any
 
 import yaml
 
-from nyssa_bench.core.registry import ENGINE_REGISTRY, POLICY_REGISTRY
+from nyssa_bench.core.registry import ENGINE_REGISTRY, ENGINE_SUPPORT_TIER, POLICY_REGISTRY, POLICY_SUPPORT_TIER
 from nyssa_bench.core.suite import Suite, list_suites
 from nyssa_bench.core.task import TaskSpec, list_tasks
+from nyssa_bench.baselines.simple_bc import train_linear_bc
 from nyssa_bench.datasets.export_hdf5 import export_hdf5
 from nyssa_bench.datasets.export_json import export_json
 from nyssa_bench.datasets.export_jsonl import export_jsonl
 from nyssa_bench.datasets.export_lerobot import export_lerobot
 from nyssa_bench.datasets.export_parquet import export_parquet
+from nyssa_bench.datasets.export_robomimic import export_robomimic_hdf5
 from nyssa_bench.reports.comparison import compare_runs, save_comparison_report, save_leaderboard
+from nyssa_bench.reports.html_report import Report
+from nyssa_bench.reports.result_pack import write_experiment_manifest, write_results_markdown
 from nyssa_bench.reports.scorecard import write_scorecard
 from nyssa_bench.runner import PolicyRunner
+from nyssa_bench.metrics.run_claims import PUBLIC_CLAIM_ENGINES
+from nyssa_bench.baselines.robomimic_bc import train_robomimic
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -43,8 +50,13 @@ def main(argv: list[str] | None = None) -> int:
 
     export_parser = subparsers.add_parser("export")
     export_parser.add_argument("--run", required=True)
-    export_parser.add_argument("--format", choices=["json", "jsonl", "lerobot", "hdf5", "parquet"], default="lerobot")
+    export_parser.add_argument(
+        "--format",
+        choices=["json", "jsonl", "lerobot", "hdf5", "parquet", "robomimic"],
+        default="lerobot",
+    )
     export_parser.add_argument("--out")
+    export_parser.add_argument("--feature-dim", type=int, default=256)
 
     compare_parser = subparsers.add_parser("compare")
     compare_parser.add_argument("runs", nargs="+")
@@ -61,6 +73,28 @@ def main(argv: list[str] | None = None) -> int:
     scorecard_parser.add_argument("--date")
     scorecard_parser.add_argument("--comparison-out", default="reports/real_baselines_v0.html")
     scorecard_parser.add_argument("--leaderboard-out", default="site/leaderboard/leaderboard.json")
+
+    experiment_parser = subparsers.add_parser("experiment")
+    experiment_parser.add_argument("--suite", default="maniskill_manipulation_v0")
+    experiment_parser.add_argument("--engine", default="maniskill")
+    experiment_parser.add_argument("--policies", nargs="+", default=["random", "scripted_oracle", "bc_policy"])
+    experiment_parser.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2])
+    experiment_parser.add_argument("--episodes", type=int, default=100)
+    experiment_parser.add_argument("--out", default="benchmark_results/maniskill_manipulation_v0")
+    experiment_parser.add_argument("--max-steps", type=int)
+    experiment_parser.add_argument("--no-replay", action="store_true")
+    experiment_parser.add_argument("--capture-replay", action="store_true")
+
+    train_bc_parser = subparsers.add_parser("train-bc")
+    train_bc_parser.add_argument("episodes", nargs="+")
+    train_bc_parser.add_argument("--out", default="checkpoints/bc_policy.json")
+    train_bc_parser.add_argument("--feature-dim", type=int, default=256)
+    train_bc_parser.add_argument("--ridge", type=float, default=1e-3)
+
+    train_robomimic_parser = subparsers.add_parser("train-robomimic")
+    train_robomimic_parser.add_argument("--config", required=True)
+    train_robomimic_parser.add_argument("--name")
+    train_robomimic_parser.add_argument("--debug", action="store_true")
 
     validate_parser = subparsers.add_parser("validate")
     validate_parser.add_argument("target")
@@ -79,12 +113,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "list-engines":
         for engine in sorted(ENGINE_REGISTRY):
-            print(engine)
+            print(f"{engine}\t{ENGINE_SUPPORT_TIER.get(engine, 'unknown')}")
         return 0
 
     if args.command == "list-policies":
         for policy in sorted(POLICY_REGISTRY):
-            print(policy)
+            print(f"{policy}\t{POLICY_SUPPORT_TIER.get(policy, 'unknown')}")
         return 0
 
     if args.command == "run":
@@ -107,7 +141,17 @@ def main(argv: list[str] | None = None) -> int:
         metrics_path = run_dir / "metrics.json"
         if not metrics_path.exists():
             raise FileNotFoundError(f"Run metrics not found: {metrics_path}")
-        print(metrics_path.read_text(encoding="utf-8"))
+        summary = json.loads(metrics_path.read_text(encoding="utf-8"))
+        metadata = _load_run_metadata(run_dir)
+        report = Report(
+            suite_id=str(metadata.get("suite_id", summary.get("suite_id", "unknown"))),
+            policy=str(metadata.get("policy_name", summary.get("policy", "unknown"))),
+            engine=str(metadata.get("engine_name", summary.get("engine", "unknown"))),
+            summary=summary,
+            run_dir=run_dir,
+        )
+        out = report.save(run_dir / "report.html")
+        print(f"report: {out}")
         return 0
 
     if args.command == "export":
@@ -124,6 +168,8 @@ def main(argv: list[str] | None = None) -> int:
             out = export_hdf5(episodes, out_arg or run_dir / "episodes.hdf5")
         elif args.format == "parquet":
             out = export_parquet(episodes, out_arg or run_dir / "episodes.parquet")
+        elif args.format == "robomimic":
+            out = export_robomimic_hdf5(episodes, out_arg or run_dir / "robomimic.hdf5", feature_dim=args.feature_dim)
         else:
             raise ValueError(f"Unsupported export format: {args.format}")
         print(f"exported: {out}")
@@ -154,12 +200,124 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{label}: {path}")
         return 0
 
+    if args.command == "experiment":
+        paths = _run_experiment(args)
+        for label, path in paths.items():
+            print(f"{label}: {path}")
+        return 0
+
+    if args.command == "train-bc":
+        out = _train_bc_from_episode_files(args.episodes, args.out, feature_dim=args.feature_dim, ridge=args.ridge)
+        print(f"bc_checkpoint: {out}")
+        return 0
+
+    if args.command == "train-robomimic":
+        train_robomimic(args.config, name=args.name, debug=args.debug)
+        print("robomimic_training: complete")
+        return 0
+
     if args.command == "validate":
         _validate_target(args.target)
         print(f"valid: {args.target}")
         return 0
 
     return 1
+
+
+def _run_experiment(args: argparse.Namespace) -> dict[str, Path]:
+    suite = Suite.load(args.suite)
+    out_dir = Path(args.out)
+    run_dirs: list[Path] = []
+    for policy in args.policies:
+        for seed in args.seeds:
+            run_dir = out_dir / policy / f"seed_{seed}"
+            runner = PolicyRunner(
+                policy=policy,
+                engine=args.engine,
+                episodes=args.episodes,
+                seed=seed,
+                out=run_dir,
+                max_steps=args.max_steps,
+                capture_replay=_capture_replay_default(args.engine, args.no_replay, args.capture_replay),
+            )
+            runner.evaluate(suite)
+            run_dirs.append(run_dir)
+
+    comparison_path = out_dir / "comparison.html"
+    leaderboard_path = out_dir / "leaderboard.json"
+    scorecard_path = out_dir / "scorecard.json"
+    comparison = compare_runs(run_dirs)
+    save_comparison_report(comparison, comparison_path)
+    save_leaderboard(comparison, leaderboard_path)
+    write_scorecard(
+        run_dirs,
+        out=scorecard_path,
+        benchmark=f"{args.suite} baseline matrix",
+        comparison_report=comparison_path,
+        leaderboard=leaderboard_path,
+    )
+    results_path = write_results_markdown(
+        out_dir=out_dir,
+        suite_id=args.suite,
+        engine=args.engine,
+        policies=list(args.policies),
+        seeds=list(args.seeds),
+        episodes_per_task=args.episodes,
+        run_dirs=run_dirs,
+        comparison_report=comparison_path,
+        leaderboard=leaderboard_path,
+        scorecard=scorecard_path,
+    )
+    manifest_path = write_experiment_manifest(
+        out_dir=out_dir,
+        suite_id=args.suite,
+        engine=args.engine,
+        policies=list(args.policies),
+        seeds=list(args.seeds),
+        episodes_per_task=args.episodes,
+        run_dirs=run_dirs,
+        artifacts={
+            "comparison_report": comparison_path,
+            "leaderboard": leaderboard_path,
+            "scorecard": scorecard_path,
+            "results": results_path,
+        },
+    )
+    return {
+        "manifest": manifest_path,
+        "results": results_path,
+        "comparison_report": comparison_path,
+        "leaderboard": leaderboard_path,
+        "scorecard": scorecard_path,
+    }
+
+
+def _train_bc_from_episode_files(
+    episodes_paths: list[str],
+    out: str | Path,
+    *,
+    feature_dim: int,
+    ridge: float,
+) -> Path:
+    if len(episodes_paths) == 1:
+        return train_linear_bc(episodes_paths[0], out, feature_dim=feature_dim, ridge=ridge)
+
+    import json
+    import tempfile
+
+    merged = []
+    for path in episodes_paths:
+        merged.extend(json.loads(Path(path).read_text(encoding="utf-8")))
+    with tempfile.NamedTemporaryFile("w", suffix=".json", encoding="utf-8", delete=False) as handle:
+        json.dump(merged, handle)
+        merged_path = Path(handle.name)
+    try:
+        return train_linear_bc(merged_path, out, feature_dim=feature_dim, ridge=ridge)
+    finally:
+        try:
+            merged_path.unlink()
+        except OSError:
+            pass
 
 
 def _validate_target(target: str) -> None:
@@ -183,7 +341,15 @@ def _capture_replay_default(engine: str, no_replay: bool, capture_replay: bool) 
         return False
     if capture_replay:
         return True
-    return False
+    return engine in PUBLIC_CLAIM_ENGINES
+
+
+def _load_run_metadata(run_dir: Path) -> dict[str, Any]:
+    run_path = run_dir / "run.yaml"
+    if not run_path.exists():
+        return {}
+    data = yaml.safe_load(run_path.read_text(encoding="utf-8")) or {}
+    return data if isinstance(data, dict) else {}
 
 
 def _load_episodes(run_dir: Path):
@@ -212,6 +378,7 @@ def _load_episodes(run_dir: Path):
                 success=item["success"],
                 failure_label=item["failure_label"],
                 metrics=item["metrics"],
+                failure_label_source=item.get("failure_label_source"),
                 steps=steps,
                 replay_path=item.get("replay_path"),
                 failure_clip_path=item.get("failure_clip_path"),

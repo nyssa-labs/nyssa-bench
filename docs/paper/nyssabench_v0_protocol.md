@@ -30,6 +30,6 @@ Compare policies only when task specs, engine, randomization settings, and seed 
 
 ## Limitations
 
-The v0 score is not a calibrated sim-to-real predictor. Treat it as a readiness proxy until validated against real robot outcomes.
+The v0 prototype reliability score is not a calibrated sim-to-real predictor. Treat it as a simulator-readiness proxy until validated against real robot outcomes.
 
-The protocol excludes synthetic backends. Published scorecards use real simulator adapters only.
+The protocol excludes synthetic backends. Published scorecards require real simulator adapters, explicit task mappings, reproducibility metadata, episode evidence, and passing public-claim validation.

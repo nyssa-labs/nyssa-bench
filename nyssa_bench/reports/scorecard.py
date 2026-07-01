@@ -23,7 +23,7 @@ REQUIRED_RUN_FILES = [
 
 DEFAULT_NOTES = [
     "These results are generated from NyssaBench run artifacts on disk.",
-    "Each included run must contain real simulator metadata, metrics, episodes, and report artifacts.",
+    "Public claims require the run-level validation gate to pass.",
     "Random policies are baseline sanity checks, not strong learned-policy results.",
 ]
 
@@ -46,7 +46,8 @@ def build_scorecard(
         "benchmark": benchmark,
         "date": scorecard_date or date.today().isoformat(),
         "status": "generated",
-        "public_claim": all(bool(result.get("public_claim", False)) for result in results),
+        "public_claim": all(bool(result.get("public_claim", False)) for result in results)
+        and not _needs_learned_baseline(results),
         "generated_at": datetime.now(UTC).isoformat(),
         "notes": notes or DEFAULT_NOTES,
         "results": results,
@@ -121,12 +122,19 @@ def _load_scorecard_result(run_dir: Path) -> dict[str, Any]:
         "finished_at": metadata.get("finished_at"),
         "success_rate": metrics.get("success_rate", 0.0),
         "success_rate_ci95": metrics.get("success_rate_ci95", [0.0, 0.0]),
-        "sim_to_real_score": metrics.get("sim_to_real_score", 0.0),
+        "prototype_reliability_score": metrics.get(
+            "prototype_reliability_score", metrics.get("sim_to_real_score", 0.0)
+        ),
+        "score_kind": metrics.get("score_kind", "prototype_reliability_heuristic"),
+        "sim_to_real_score_deprecated": bool(metrics.get("sim_to_real_score_deprecated", "sim_to_real_score" in metrics)),
         "benchmark_tier": metrics.get("benchmark_tier", "unknown"),
         "public_claim": bool(metrics.get("public_claim", False)),
+        "public_claim_validation": metrics.get("public_claim_validation", {}),
+        "stressor_support": metrics.get("stressor_support", {}),
         "primary_failure_mode": metrics.get("primary_failure_mode"),
         "failure_counts": metrics.get("failure_counts", {}),
         "per_task": _compact_per_task(metrics.get("per_task", {})),
+        "per_seed": _compact_per_seed(metrics.get("per_seed", {})),
     }
 
 
@@ -153,6 +161,24 @@ def _compact_per_task(per_task: Any) -> dict[str, Any]:
     return {
         str(task_id): {field: values[field] for field in fields if field in values}
         for task_id, values in per_task.items()
+        if isinstance(values, dict)
+    }
+
+
+def _compact_per_seed(per_seed: Any) -> dict[str, Any]:
+    if not isinstance(per_seed, dict):
+        return {}
+    fields = [
+        "episodes",
+        "success_count",
+        "success_rate",
+        "success_rate_ci95",
+        "failure_counts",
+        "primary_failure_mode",
+    ]
+    return {
+        str(seed): {field: values[field] for field in fields if field in values}
+        for seed, values in per_seed.items()
         if isinstance(values, dict)
     }
 

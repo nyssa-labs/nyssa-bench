@@ -15,6 +15,7 @@ def aggregate_episodes(episodes: list[EpisodeResult]) -> dict[str, object]:
             "success_rate_ci95": [0.0, 0.0],
             "failure_counts": {},
             "per_task": {},
+            "per_seed": {},
             "metrics": {},
             "metric_ci95": {},
         }
@@ -41,6 +42,7 @@ def aggregate_episodes(episodes: list[EpisodeResult]) -> dict[str, object]:
         "metrics": metric_means,
         "metric_ci95": metric_ci95,
         "per_task": _per_task_summary(episodes),
+        "per_seed": _per_seed_summary(episodes),
     }
 
 
@@ -67,6 +69,24 @@ def _per_task_summary(episodes: list[EpisodeResult]) -> dict[str, object]:
                 key: _mean_ci95([float(ep.metrics.get(key, 0.0)) for ep in task_episodes])
                 for key in metric_keys
             },
+        }
+    return summaries
+
+
+def _per_seed_summary(episodes: list[EpisodeResult]) -> dict[str, object]:
+    seeds = sorted({ep.seed for ep in episodes})
+    summaries: dict[str, object] = {}
+    for seed in seeds:
+        seed_episodes = [ep for ep in episodes if ep.seed == seed]
+        seed_failures = Counter(ep.failure_label for ep in seed_episodes if ep.failure_label)
+        seed_success_count = sum(1 for ep in seed_episodes if ep.success)
+        summaries[str(seed)] = {
+            "episodes": len(seed_episodes),
+            "success_count": seed_success_count,
+            "success_rate": seed_success_count / len(seed_episodes),
+            "success_rate_ci95": _wilson_ci(seed_success_count, len(seed_episodes)),
+            "failure_counts": dict(seed_failures),
+            "primary_failure_mode": seed_failures.most_common(1)[0][0] if seed_failures else None,
         }
     return summaries
 

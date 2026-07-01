@@ -32,6 +32,7 @@ class EpisodeResult:
     success: bool
     failure_label: str | None
     metrics: dict[str, float]
+    failure_label_source: str | None = None
     steps: list[StepRecord] = field(default_factory=list)
     replay_path: str | None = None
     failure_clip_path: str | None = None
@@ -43,6 +44,7 @@ class EpisodeResult:
             "seed": self.seed,
             "success": self.success,
             "failure_label": self.failure_label,
+            "failure_label_source": self.failure_label_source,
             "metrics": self.metrics,
             "replay_path": self.replay_path,
             "failure_clip_path": self.failure_clip_path,

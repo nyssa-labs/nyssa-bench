@@ -55,7 +55,6 @@ class MuJoCoEngine(NyssaEngine):
             terminated=bool(terminated),
             task_spec=self.task_spec,
         )
-        info.setdefault("failure_label", None if info["success"] else _default_failure_label(self.task_spec))
         return wrap_observation(self.env, observation), float(reward), bool(terminated), bool(truncated), info
 
     def render(self) -> Any:
@@ -97,7 +96,13 @@ def _resolve_env_id(task_spec: TaskSpec, engine: str) -> str:
     engine_env_ids = task_spec.success.get("engine_env_ids", {})
     if isinstance(engine_env_ids, dict) and engine_env_ids.get(engine):
         return str(engine_env_ids[engine])
-    return str(task_spec.success.get(f"{engine}_env_id") or task_spec.task_id)
+    legacy = task_spec.success.get(f"{engine}_env_id")
+    if legacy:
+        return str(legacy)
+    raise RuntimeError(
+        f"Task '{task_spec.task_id}' is missing success.engine_env_ids.{engine}. "
+        "Real simulator tasks must define explicit environment mappings."
+    )
 
 
 def _extract_success(
@@ -148,12 +153,3 @@ def _as_bool(value: Any) -> bool:
         return bool(value.all())
     return bool(value)
 
-
-def _default_failure_label(task_spec: TaskSpec | None) -> str | None:
-    if task_spec is None or not task_spec.failure_labels:
-        return None
-    if "missed_target" in task_spec.failure_labels:
-        return "missed_target"
-    if "unstable_contact" in task_spec.failure_labels:
-        return "unstable_contact"
-    return task_spec.failure_labels[0]

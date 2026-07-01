@@ -13,8 +13,8 @@ The experiment configs live in `configs/experiments/` and describe the minimum i
 Run contract validation with:
 
 ```bash
-python scripts/validate_backend.py robocasa
-python scripts/validate_backend.py genesis
+uv run python scripts/validate_backend.py robocasa
+uv run python scripts/validate_backend.py genesis
 ```
 
 The adapters can run real environments once a task provides a concrete mapping:

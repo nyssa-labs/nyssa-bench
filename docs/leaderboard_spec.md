@@ -1,6 +1,6 @@
 # Leaderboard Spec
 
-The leaderboard export is a JSON array sorted by success rate and sim-to-real score.
+The leaderboard export is a JSON array sorted by success rate and prototype reliability score.
 
 Each entry contains:
 
@@ -11,6 +11,7 @@ Each entry contains:
 - `sim_to_real_score`
 - `benchmark_tier`
 - `public_claim`
+- `public_claim_status`
 - `primary_failure_mode`
 
 This file can be published by a static site today or uploaded to a hosted Nyssa Cloud leaderboard later.

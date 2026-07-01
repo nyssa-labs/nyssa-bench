@@ -1,0 +1,6 @@
+suite_id: maniskill_manipulation_v0
+description: Focused ManiSkill manipulation benchmark for credible baseline experiments.
+tasks:
+  - maniskill_pick_cube
+  - maniskill_stack_cube
+  - maniskill_push_cube

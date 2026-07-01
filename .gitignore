@@ -11,4 +11,5 @@ build/
 *.egg-info/
 /runs/
 /reports/
+/checkpoints/
 PLAN.md

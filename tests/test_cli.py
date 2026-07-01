@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any
+import json
 
 from nyssa_bench.cli import main
 from nyssa_bench.engines.base import NyssaEngine
@@ -66,11 +67,14 @@ def test_cli_run_and_export(tmp_path: Path):
         ]
     ) == 0
     assert (run_dir / "report.html").exists()
+    assert main(["report", str(run_dir)]) == 0
 
     assert main(["export", "--run", str(run_dir), "--format", "lerobot"]) == 0
     assert (run_dir / "lerobot" / "meta.json").exists()
     assert main(["export", "--run", str(run_dir), "--format", "jsonl"]) == 0
     assert (run_dir / "episodes.export.jsonl").exists()
+    assert main(["export", "--run", str(run_dir), "--format", "robomimic"]) == 0
+    assert (run_dir / "robomimic.hdf5").exists()
 
     assert main(
         [
@@ -91,6 +95,64 @@ def test_cli_run_and_export(tmp_path: Path):
     assert main(["leaderboard", str(run_dir), str(other_run_dir), "--out", str(tmp_path / "leaderboard.json")]) == 0
     assert (tmp_path / "compare.html").exists()
     assert (tmp_path / "leaderboard.json").exists()
+
+
+def test_cli_experiment_writes_result_pack(tmp_path: Path):
+    _register_cli_engine()
+    out = tmp_path / "experiment"
+
+    assert (
+        main(
+            [
+                "experiment",
+                "--suite",
+                "maniskill_manipulation_v0",
+                "--engine",
+                "cli_real",
+                "--policies",
+                "random",
+                "--seeds",
+                "0",
+                "1",
+                "--episodes",
+                "1",
+                "--out",
+                str(out),
+            ]
+        )
+        == 0
+    )
+
+    assert (out / "manifest.json").exists()
+    assert (out / "RESULTS.md").exists()
+    assert (out / "comparison.html").exists()
+    assert (out / "leaderboard.json").exists()
+    assert (out / "scorecard.json").exists()
+    assert (out / "random" / "seed_0" / "metrics.json").exists()
+    assert (out / "random" / "seed_1" / "metrics.json").exists()
+
+
+def test_cli_train_bc_writes_checkpoint(tmp_path: Path):
+    episodes = tmp_path / "episodes.json"
+    episodes.write_text(
+        json.dumps(
+            [
+                {
+                    "steps": [
+                        {
+                            "observation": _observation(),
+                            "action": [0.2],
+                        }
+                    ]
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "bc_policy.json"
+
+    assert main(["train-bc", str(episodes), "--out", str(out)]) == 0
+    assert out.exists()
 
 
 def test_scripts_smoke(tmp_path: Path):

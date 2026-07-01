@@ -24,12 +24,15 @@ class Report:
     def to_html(self) -> str:
         success_rate = float(self.summary.get("success_rate", 0.0)) * 100
         success_ci = self.summary.get("success_rate_ci95", [0.0, 0.0])
-        sim_to_real = float(self.summary.get("sim_to_real_score", 0.0))
+        prototype_score = float(self.summary.get("prototype_reliability_score", self.summary.get("sim_to_real_score", 0.0)))
         primary_failure = self.summary.get("primary_failure_mode") or "none"
         benchmark_tier = self.summary.get("benchmark_tier", "unknown")
+        validation = self.summary.get("public_claim_validation", {})
+        stressor_support = self.summary.get("stressor_support", {})
         metrics = self.summary.get("metrics", {})
         failure_counts = self.summary.get("failure_counts", {})
         per_task = self.summary.get("per_task", {})
+        per_seed = self.summary.get("per_seed", {})
         return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -54,19 +57,32 @@ class Report:
   <section>
     <div class="metric"><div>Success rate</div><div class="value">{success_rate:.1f}%</div></div>
     <div class="metric"><div>95% CI</div><div class="value">{_format_ci_percent(success_ci)}</div></div>
-    <div class="metric"><div>Sim-to-real score</div><div class="value">{sim_to_real:.3f}</div></div>
+    <div class="metric"><div>Prototype reliability</div><div class="value">{prototype_score:.3f}</div></div>
     <div class="metric"><div>Primary failure mode</div><div class="value">{html.escape(str(primary_failure))}</div></div>
     <div class="metric"><div>Benchmark tier</div><div class="value">{html.escape(str(benchmark_tier))}</div></div>
+    <div class="metric"><div>Public claim</div><div class="value">{html.escape(str(self.summary.get("public_claim", False)))}</div></div>
   </section>
+
+  <h2>Public-Claim Validation</h2>
+  {_validation_table(validation)}
 
   <h2>Per-Task Results</h2>
   {_per_task_table(per_task)}
+
+  <h2>Per-Seed Results</h2>
+  {_per_seed_table(per_seed)}
+
+  <h2>Stressor Support</h2>
+  {_stressor_table(stressor_support)}
 
   <h2>Aggregate Metrics</h2>
   {_table(metrics)}
 
   <h2>Failure Clusters</h2>
   {_table(failure_counts)}
+
+  <h2>Top Failure Episodes</h2>
+  {_failure_episode_table(self.run_dir)}
 
   <h2>Raw Summary</h2>
   <pre>{html.escape(json.dumps(self.summary, indent=2))}</pre>
@@ -81,6 +97,82 @@ def _table(data: dict[str, Any]) -> str:
         for key, value in sorted(data.items())
     )
     return f"<table><tbody>{rows}</tbody></table>" if rows else "<p>No data.</p>"
+
+
+def _validation_table(data: Any) -> str:
+    if not isinstance(data, dict):
+        return "<p>No validation data.</p>"
+    checks = data.get("checks", {})
+    failures = data.get("failures", [])
+    warnings = data.get("warnings", [])
+    rows = [
+        ("status", data.get("status", "unknown")),
+        ("public_claim", data.get("public_claim", False)),
+        ("benchmark_tier", data.get("benchmark_tier", "unknown")),
+        ("failures", ", ".join(failures) if failures else "none"),
+        ("warnings", ", ".join(warnings) if warnings else "none"),
+    ]
+    if isinstance(checks, dict):
+        rows.extend((f"check:{key}", value) for key, value in sorted(checks.items()))
+    return _table(dict(rows))
+
+
+def _stressor_table(data: Any) -> str:
+    if not isinstance(data, dict):
+        return "<p>No stressor support data.</p>"
+    unsupported = data.get("unsupported_by_task", {})
+    supported = data.get("supported_by_task", {})
+    task_ids = sorted(set(unsupported) | set(supported))
+    if not task_ids:
+        return "<p>No declared stressors.</p>"
+    rows = []
+    for task_id in task_ids:
+        rows.append(
+            "<tr>"
+            f"<td>{html.escape(str(task_id))}</td>"
+            f"<td>{html.escape(', '.join(supported.get(task_id, [])) or 'none')}</td>"
+            f"<td>{html.escape(', '.join(unsupported.get(task_id, [])) or 'none')}</td>"
+            "</tr>"
+        )
+    return (
+        "<table><thead><tr><th>Task</th><th>Supported</th><th>Unsupported</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
+    )
+
+
+def _failure_episode_table(run_dir: Path | None) -> str:
+    if run_dir is None:
+        return "<p>No run directory available.</p>"
+    episodes_path = Path(run_dir) / "episodes.json"
+    if not episodes_path.exists():
+        return "<p>No episode artifact available.</p>"
+    try:
+        episodes = json.loads(episodes_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return "<p>Could not read episode artifact.</p>"
+    failures = [item for item in episodes if not item.get("success")]
+    if not failures:
+        return "<p>No failures recorded.</p>"
+    failures = sorted(failures, key=lambda item: len(item.get("steps", [])), reverse=True)[:10]
+    rows = []
+    for item in failures:
+        clip = item.get("failure_clip_path") or item.get("replay_path") or ""
+        clip_cell = f'<a href="{html.escape(str(clip))}">video</a>' if clip else "none"
+        rows.append(
+            "<tr>"
+            f"<td>{html.escape(str(item.get('task_id')))}</td>"
+            f"<td>{int(item.get('episode_index', 0))}</td>"
+            f"<td>{html.escape(str(item.get('failure_label') or 'unknown'))}</td>"
+            f"<td>{html.escape(str(item.get('failure_label_source') or 'unknown'))}</td>"
+            f"<td>{len(item.get('steps', []))}</td>"
+            f"<td>{clip_cell}</td>"
+            "</tr>"
+        )
+    return (
+        "<table><thead><tr><th>Task</th><th>Episode</th><th>Failure</th><th>Source</th>"
+        "<th>Steps</th><th>Replay</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
+    )
 
 
 def _format_value(value: Any) -> str:
@@ -113,6 +205,29 @@ def _per_task_table(data: dict[str, Any]) -> str:
         )
     return (
         "<table><thead><tr><th>Task</th><th>Episodes</th><th>Success</th>"
+        "<th>95% CI</th><th>Primary failure</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
+    )
+
+
+def _per_seed_table(data: dict[str, Any]) -> str:
+    if not data:
+        return "<p>No per-seed data.</p>"
+    rows = []
+    for seed, summary in sorted(data.items(), key=lambda item: int(item[0]) if str(item[0]).isdigit() else str(item[0])):
+        seed_summary = dict(summary)
+        success_rate = float(seed_summary.get("success_rate", 0.0)) * 100
+        rows.append(
+            "<tr>"
+            f"<td>{html.escape(str(seed))}</td>"
+            f"<td>{int(seed_summary.get('episodes', 0))}</td>"
+            f"<td>{success_rate:.1f}%</td>"
+            f"<td>{html.escape(_format_ci_percent(seed_summary.get('success_rate_ci95', [])))}</td>"
+            f"<td>{html.escape(str(seed_summary.get('primary_failure_mode') or 'none'))}</td>"
+            "</tr>"
+        )
+    return (
+        "<table><thead><tr><th>Seed</th><th>Episodes</th><th>Success</th>"
         "<th>95% CI</th><th>Primary failure</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table>"
     )

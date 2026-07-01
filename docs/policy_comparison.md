@@ -1,6 +1,6 @@
 # Policy Comparison Reports
 
-Use `nyssa compare` to rank multiple run directories by success rate and sim-to-real score.
+Use `nyssa compare` to rank multiple run directories by success rate and prototype reliability score.
 
 ```bash
 nyssa compare runs/maniskill_random_v0 runs/mujoco_random_v0 --out reports/compare.html

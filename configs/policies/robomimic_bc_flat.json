@@ -1,0 +1,59 @@
+{
+  "algo_name": "bc",
+  "experiment": {
+    "name": "nyssa_bc_flat",
+    "validate": false,
+    "logging": {
+      "terminal_output_to_txt": true,
+      "log_tb": true
+    },
+    "save": {
+      "enabled": true,
+      "every_n_seconds": 600,
+      "every_n_epochs": 1
+    },
+    "epoch_every_n_steps": 1000,
+    "validation_epoch_every_n_steps": 100
+  },
+  "train": {
+    "data": "benchmark_results/maniskill_manipulation_v0_demos/scripted_oracle/seed_0/robomimic.hdf5",
+    "output_dir": "checkpoints/robomimic",
+    "num_epochs": 50,
+    "batch_size": 64,
+    "num_data_workers": 0,
+    "hdf5_cache_mode": "low_dim",
+    "hdf5_normalize_obs": true,
+    "seed": 1
+  },
+  "observation": {
+    "modalities": {
+      "obs": {
+        "low_dim": [
+          "flat"
+        ],
+        "rgb": [],
+        "depth": [],
+        "scan": []
+      }
+    }
+  },
+  "algo": {
+    "optim_params": {
+      "policy": {
+        "learning_rate": {
+          "initial": 0.0001
+        }
+      }
+    },
+    "actor_layer_dims": [
+      1024,
+      1024
+    ],
+    "gmm": {
+      "enabled": false
+    },
+    "gaussian": {
+      "enabled": false
+    }
+  }
+}

@@ -16,4 +16,4 @@ success:
 randomization:
   seed: true
 metrics: [success_rate, completion_time, path_efficiency]
-failure_labels: [missed_target, planner_stuck]
+failure_labels: [missed_target, planner_stuck, timeout, unknown_failure]

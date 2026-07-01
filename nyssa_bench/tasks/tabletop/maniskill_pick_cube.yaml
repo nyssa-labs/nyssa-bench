@@ -15,4 +15,4 @@ success:
 randomization:
   seed: true
 metrics: [success_rate, completion_time, collision_count, grasp_success_rate]
-failure_labels: [bad_grasp, object_slip, missed_target]
+failure_labels: [bad_grasp, object_slip, missed_target, timeout, unknown_failure]

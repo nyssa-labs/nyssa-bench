@@ -13,7 +13,7 @@
   <h1>NyssaBench Leaderboard</h1>
   <p>Static leaderboard shell. Export rankings with <code>nyssa leaderboard ... --out site/leaderboard/leaderboard.json</code>.</p>
   <table>
-    <thead><tr><th>Rank</th><th>Run</th><th>Success</th><th>Sim-to-real</th><th>Primary failure</th></tr></thead>
+    <thead><tr><th>Rank</th><th>Run</th><th>Success</th><th>Prototype reliability</th><th>Claim status</th><th>Primary failure</th></tr></thead>
     <tbody id="rows"></tbody>
   </table>
   <script>
@@ -23,7 +23,8 @@
         const tbody = document.getElementById("rows");
         for (const row of rows) {
           const tr = document.createElement("tr");
-          tr.innerHTML = `<td>${row.rank}</td><td>${row.run_dir}</td><td>${(row.success_rate * 100).toFixed(1)}%</td><td>${row.sim_to_real_score.toFixed(3)}</td><td>${row.primary_failure_mode || ""}</td>`;
+          const score = row.prototype_reliability_score ?? row.sim_to_real_score ?? 0;
+          tr.innerHTML = `<td>${row.rank}</td><td>${row.run_dir}</td><td>${(row.success_rate * 100).toFixed(1)}%</td><td>${score.toFixed(3)}</td><td>${row.public_claim_status || "unknown"}</td><td>${row.primary_failure_mode || ""}</td>`;
           tbody.appendChild(tr);
         }
       });
