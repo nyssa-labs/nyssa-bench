@@ -2,6 +2,8 @@ from pathlib import Path
 from typing import Any
 import json
 
+import pytest
+
 from nyssa_bench.cli import main
 from nyssa_bench.engines.base import NyssaEngine
 from nyssa_bench.plugins import get_plugin_registry
@@ -73,8 +75,6 @@ def test_cli_run_and_export(tmp_path: Path):
     assert (run_dir / "lerobot" / "meta.json").exists()
     assert main(["export", "--run", str(run_dir), "--format", "jsonl"]) == 0
     assert (run_dir / "episodes.export.jsonl").exists()
-    assert main(["export", "--run", str(run_dir), "--format", "robomimic"]) == 0
-    assert (run_dir / "robomimic.hdf5").exists()
 
     assert main(
         [
@@ -95,6 +95,33 @@ def test_cli_run_and_export(tmp_path: Path):
     assert main(["leaderboard", str(run_dir), str(other_run_dir), "--out", str(tmp_path / "leaderboard.json")]) == 0
     assert (tmp_path / "compare.html").exists()
     assert (tmp_path / "leaderboard.json").exists()
+
+
+def test_cli_robomimic_export_with_dataset_extra(tmp_path: Path):
+    pytest.importorskip("h5py")
+    _register_cli_engine()
+    run_dir = tmp_path / "run"
+
+    assert (
+        main(
+            [
+                "run",
+                "--suite",
+                "warehouse_manipulation_v0",
+                "--engine",
+                "cli_real",
+                "--policy",
+                "random",
+                "--episodes",
+                "1",
+                "--out",
+                str(run_dir),
+            ]
+        )
+        == 0
+    )
+    assert main(["export", "--run", str(run_dir), "--format", "robomimic"]) == 0
+    assert (run_dir / "robomimic.hdf5").exists()
 
 
 def test_cli_experiment_writes_result_pack(tmp_path: Path):
