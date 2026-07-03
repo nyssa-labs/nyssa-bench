@@ -25,6 +25,19 @@ report.save("runs/random_mujoco/report.html")
 
 ## Install
 
+Use Python 3.10 for ManiSkill/Linux runs. Some ManiSkill planning dependencies
+publish wheels for CPython 3.10 but not newer Python ABIs, so Python 3.12 can
+fail during dependency resolution.
+
+```bash
+uv python install 3.10
+uv venv --python 3.10 .venv
+source .venv/bin/activate
+python --version
+```
+
+Then install the extras you need:
+
 ```bash
 uv sync --extra dev --extra mujoco --extra video --extra reports
 ```
