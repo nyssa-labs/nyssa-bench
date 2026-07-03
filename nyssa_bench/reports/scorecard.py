@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -48,7 +48,7 @@ def build_scorecard(
         "status": "generated",
         "public_claim": all(bool(result.get("public_claim", False)) for result in results)
         and not _needs_learned_baseline(results),
-        "generated_at": datetime.now(UTC).isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "notes": notes or DEFAULT_NOTES,
         "results": results,
         "artifacts": {
