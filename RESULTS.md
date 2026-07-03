@@ -1,8 +1,37 @@
 # NyssaBench Results
 
-No current committed artifact is a public benchmark claim.
+NyssaBench can generate a ManiSkill result pack, but the current local Windows
+numbers were weak. Treat local run outputs as reproducibility artifacts, not as
+strong robotics benchmark claims.
 
-The committed random baseline JSON and static leaderboard are sanity artifacts from earlier runs. Regenerate results with the current validator before publishing benchmark numbers.
+Latest local candidate, not committed because the run artifacts are large:
+
+- `benchmark_results/maniskill_manipulation_v0_state_obs`
+- Suite: `maniskill_manipulation_v0`
+- Engine: ManiSkill
+- Tasks: `PickCube-v1`, `StackCube-v1`, `PushCube-v1`
+- Policies: `random`, `scripted_oracle`, `bc_policy`
+- Seeds: `0, 1, 2`
+- Episodes: 100 per task per seed, 900 per policy
+- Validation: all 9 runs passed `public_claim_validation`
+- Replay videos: absent in this Windows/Sapien run; episode artifacts are present
+
+Current headline:
+
+| Policy | Successes | Episodes | Success rate | Primary failure |
+| --- | ---: | ---: | ---: | --- |
+| random | 0 | 900 | 0.0000 | timeout |
+| scripted_oracle | 6 | 900 | 0.0067 | timeout |
+| bc_policy | 6 | 900 | 0.0067 | timeout |
+
+Interpretation:
+
+- `random` is a weak sanity check.
+- `scripted_oracle` is currently a lightweight heuristic baseline, not a strong oracle.
+- `bc_policy` is a learned baseline pipeline check, not a strong learned policy.
+- The result demonstrates reproducible real-simulator execution and failure reporting.
+- The result does not yet demonstrate strong manipulation performance.
+- A stronger v0.1 should use a planner-backed oracle or a trained checkpoint that clearly beats random and the current heuristic.
 
 ## Target v0.1 Result Pack
 
@@ -60,5 +89,11 @@ uv run nyssa experiment \
 ```
 
 Each run's `metrics.json` contains `public_claim_validation`. Only publish results whose validation passes.
+
+## Next Improvement Target
+
+Install/use ManiSkill motion-planning dependencies in a suitable Linux or conda
+environment, generate planner-backed demonstrations, retrain BC, and rerun the
+same matrix with replay capture enabled.
 
 Use `NYSSA_ROBOMIMIC_CHECKPOINT=path/to/model.pth --policies robomimic` to evaluate a robomimic checkpoint, or `NYSSA_LEROBOT_POLICY_PATH=path/to/policy --policies lerobot` to evaluate a LeRobot policy directory.

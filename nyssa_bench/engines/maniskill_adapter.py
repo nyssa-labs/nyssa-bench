@@ -25,7 +25,13 @@ class ManiSkillEngine(NyssaEngine):
             raise RuntimeError("Install NyssaBench with the ManiSkill extra: pip install -e '.[maniskill]'") from exc
 
         env_id = _resolve_env_id(task_spec, "maniskill")
-        self.env = gym.make(env_id, render_mode=task_spec.success.get("render_mode", "rgb_array"))
+        env_kwargs = {
+            "render_mode": task_spec.success.get("render_mode", "rgb_array"),
+        }
+        for key in ("obs_mode", "control_mode", "robot_uids", "sim_backend"):
+            if key in task_spec.success:
+                env_kwargs[key] = task_spec.success[key]
+        self.env = gym.make(env_id, **env_kwargs)
 
     def reset(self, seed: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
         self._require_env()
@@ -117,4 +123,3 @@ def _as_bool(value: Any) -> bool:
     if hasattr(value, "all"):
         return bool(value.all())
     return bool(value)
-

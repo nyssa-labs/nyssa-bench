@@ -12,6 +12,7 @@ success:
   engine_env_ids:
     maniskill: StackCube-v1
   success_info_keys: [success, is_success, success_once]
+  obs_mode: state_dict
   render_mode: rgb_array
   max_steps: 120
 randomization:
