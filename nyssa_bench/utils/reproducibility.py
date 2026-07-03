@@ -4,7 +4,7 @@ import json
 import platform
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from importlib import metadata
 from pathlib import Path
 from typing import Any
@@ -14,11 +14,11 @@ from nyssa_bench.version import __version__
 
 
 def utc_now() -> str:
-    return datetime.now(UTC).isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 
 def make_run_id(suite_id: str, policy: str) -> str:
-    stamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     suffix = uuid4().hex[:8]
     return f"{suite_id}_{policy}_{stamp}_{suffix}"
 
