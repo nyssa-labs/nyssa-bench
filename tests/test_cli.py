@@ -342,6 +342,7 @@ def test_cli_writes_robomimic_config(tmp_path: Path):
     assert payload["train"]["num_epochs"] == 3
     assert payload["train"]["batch_size"] == 8
     assert payload["observation"]["modalities"]["obs"]["low_dim"] == ["flat"]
+    assert payload["experiment"]["rollout"]["enabled"] is False
 
 
 def test_scripts_smoke(tmp_path: Path):

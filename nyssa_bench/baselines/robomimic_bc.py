@@ -76,6 +76,9 @@ def write_robomimic_bc_config(
                 "every_n_seconds": 600,
                 "every_n_epochs": 1,
             },
+            "rollout": {
+                "enabled": False,
+            },
             "epoch_every_n_steps": 1000,
             "validation_epoch_every_n_steps": 100,
         },
