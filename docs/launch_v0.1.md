@@ -10,12 +10,15 @@ uv run python scripts/validate_backend.py robocasa
 uv run python scripts/validate_backend.py genesis
 ```
 
-Release artifacts:
+Generated release artifacts:
 
 - `runs/maniskill_validation/report.html`
 - `runs/mujoco_validation/report.html`
 - `benchmark_results/baselines_v0.json`
 - `docs/paper/nyssabench_v0_protocol.md`
+
+Run artifacts and scorecards are generated during release validation. Do not
+treat stale local result files as source artifacts.
 
 Tag and publish:
 
