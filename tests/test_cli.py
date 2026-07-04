@@ -99,6 +99,8 @@ def test_cli_run_and_export(tmp_path: Path):
 
 def test_cli_robomimic_export_with_dataset_extra(tmp_path: Path):
     pytest.importorskip("h5py")
+    import h5py
+
     _register_cli_engine()
     run_dir = tmp_path / "run"
 
@@ -121,7 +123,12 @@ def test_cli_robomimic_export_with_dataset_extra(tmp_path: Path):
         == 0
     )
     assert main(["export", "--run", str(run_dir), "--format", "robomimic"]) == 0
-    assert (run_dir / "robomimic.hdf5").exists()
+    robomimic_path = run_dir / "robomimic.hdf5"
+    assert robomimic_path.exists()
+    with h5py.File(robomimic_path, "r") as handle:
+        env_args = json.loads(handle["data"].attrs["env_args"])
+    assert env_args["env_name"] == "NyssaFlat-v0"
+    assert "env_kwargs" in env_args
 
 
 def test_cli_experiment_writes_result_pack(tmp_path: Path):
@@ -330,7 +337,8 @@ def test_cli_writes_robomimic_config(tmp_path: Path):
     )
 
     payload = json.loads(out.read_text(encoding="utf-8"))
-    assert payload["train"]["data"] == str(data)
+    assert payload["train"]["data"] == str(data.resolve())
+    assert Path(payload["train"]["output_dir"]).is_absolute()
     assert payload["train"]["num_epochs"] == 3
     assert payload["train"]["batch_size"] == 8
     assert payload["observation"]["modalities"]["obs"]["low_dim"] == ["flat"]

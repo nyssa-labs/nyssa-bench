@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from nyssa_bench.baselines.features import flatten_observation, normalize_action
@@ -22,7 +23,15 @@ def export_robomimic_hdf5(
     path.parent.mkdir(parents=True, exist_ok=True)
     with h5py.File(path, "w") as handle:
         data = handle.create_group("data")
-        data.attrs["env_args"] = "{}"
+        data.attrs["env_args"] = json.dumps(
+            {
+                "env_name": "NyssaFlat-v0",
+                "type": 0,
+                "env_kwargs": {
+                    "description": "Flat low-dimensional NyssaBench export for offline RoboMimic BC training.",
+                },
+            }
+        )
         total = 0
         for index, episode in enumerate(episodes):
             group = data.create_group(f"demo_{index}")

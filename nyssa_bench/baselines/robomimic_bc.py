@@ -33,12 +33,20 @@ def train_robomimic(config: str | Path, *, name: str | None = None, debug: bool 
     except ImportError as exc:
         raise RuntimeError("RoboMimic training requires: uv sync --extra robomimic") from exc
 
-    command = [sys.executable, "-m", "robomimic.scripts.train", "--config", str(config)]
+    config_path = Path(config)
+    command = [sys.executable, "-m", "robomimic.scripts.train", "--config", str(config_path)]
     if name:
         command.extend(["--name", name])
     if debug:
         command.append("--debug")
+    before = _checkpoint_set(_output_dir_from_config(config_path))
     subprocess.run(command, check=True)
+    after = _checkpoint_set(_output_dir_from_config(config_path))
+    if not after.difference(before):
+        raise RuntimeError(
+            "RoboMimic training finished without producing a new model_epoch_*.pth checkpoint. "
+            "Check the RoboMimic log for the underlying training error."
+        )
 
 
 def write_robomimic_bc_config(
@@ -72,8 +80,8 @@ def write_robomimic_bc_config(
             "validation_epoch_every_n_steps": 100,
         },
         "train": {
-            "data": str(data),
-            "output_dir": str(output_dir),
+            "data": str(Path(data).resolve()),
+            "output_dir": str(Path(output_dir).resolve()),
             "num_epochs": int(epochs),
             "batch_size": int(batch_size),
             "num_data_workers": 0,
@@ -110,3 +118,17 @@ def write_robomimic_bc_config(
     }
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return path
+
+
+def _output_dir_from_config(config: Path) -> Path:
+    try:
+        payload = json.loads(config.read_text(encoding="utf-8"))
+        return Path(payload.get("train", {}).get("output_dir", "checkpoints/robomimic"))
+    except (OSError, json.JSONDecodeError):
+        return Path("checkpoints/robomimic")
+
+
+def _checkpoint_set(output_dir: Path) -> set[Path]:
+    if not output_dir.exists():
+        return set()
+    return set(output_dir.rglob("model_epoch_*.pth"))
