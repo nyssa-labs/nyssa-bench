@@ -6,6 +6,7 @@ from nyssa_bench.replay.trajectory import state_trajectory
 from nyssa_bench.replay.video import write_episode_video
 from nyssa_bench.specs import SuiteSpec, TaskSpec as StableTaskSpec
 from pathlib import Path
+import numpy as np
 
 
 def test_stable_spec_imports():
@@ -30,6 +31,13 @@ def test_replay_helpers():
 
 def test_video_writer_handles_missing_frames(tmp_path):
     assert write_episode_video([], tmp_path, "task", 0) is None
+
+
+def test_video_writer_normalizes_batched_dict_frames(tmp_path):
+    frame = {"Color": np.zeros((1, 16, 16, 4), dtype=np.float32)}
+    out = write_episode_video([frame, frame], tmp_path, "task", 1)
+    assert out is not None
+    assert (tmp_path / out).exists()
 
 
 def test_static_release_artifacts_exist():
