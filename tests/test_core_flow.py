@@ -76,6 +76,7 @@ def test_suite_loads_tasks():
         "maniskill_stack_cube",
         "maniskill_push_cube",
     ]
+    assert all(task.success["control_mode"] == "pd_ee_delta_pose" for task in focused.tasks)
 
     mujoco = Suite.load("mujoco_control_v0")
     assert mujoco.tasks[0].success["engine_env_ids"]["mujoco"] == "Reacher-v4"
