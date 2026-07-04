@@ -75,7 +75,7 @@ def test_suite_loads_tasks():
     ]
 
     mujoco = Suite.load("mujoco_control_v0")
-    assert mujoco.tasks[0].success["engine_env_ids"]["mujoco"] == "Reacher-v5"
+    assert mujoco.tasks[0].success["engine_env_ids"]["mujoco"] == "Reacher-v4"
 
 
 def test_runner_writes_artifacts(tmp_path: Path):
