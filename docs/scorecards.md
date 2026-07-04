@@ -45,7 +45,7 @@ For a learned baseline outside the experiment helper, run a real checkpoint thro
 
 ```bash
 NYSSA_ROBOMIMIC_POLICY=my_project.policies:create_robomimic_policy \
-uv run nyssa run --suite maniskill_smoke_v0 --engine maniskill --policy robomimic --episodes 100 --seed 42 --out runs/maniskill_robomimic_v0 --no-replay
+uv run nyssa run --suite maniskill_smoke_v0 --engine maniskill --policy robomimic --episodes 100 --seed 42 --out runs/maniskill_robomimic_v0
 
 uv run nyssa scorecard \
   runs/maniskill_random_v0 \

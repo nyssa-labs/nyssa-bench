@@ -27,9 +27,7 @@ class MuJoCoEngine(NyssaEngine):
             raise RuntimeError("Install NyssaBench with the MuJoCo extra: pip install -e '.[mujoco]'") from exc
 
         env_id = _resolve_env_id(task_spec, "mujoco")
-        env_kwargs = {}
-        if task_spec.success.get("render_mode"):
-            env_kwargs["render_mode"] = task_spec.success["render_mode"]
+        env_kwargs = {"render_mode": task_spec.success.get("render_mode", "rgb_array")}
         self.env = gym.make(env_id, **env_kwargs)
 
     def reset(self, seed: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:

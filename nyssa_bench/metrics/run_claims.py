@@ -55,7 +55,7 @@ class RunClaimValidator:
             "success_predicates_mapped": all(_has_success_predicate(task) for task in suite.tasks),
             "minimum_episodes_per_task": episodes_per_task >= MIN_PUBLIC_EPISODES_PER_TASK,
             "episode_evidence": _has_episode_evidence(episodes),
-            "replay_or_episode_evidence": _has_replay_or_episode_evidence(episodes),
+            "replay_video_evidence": _has_replay_video_evidence(episodes),
             "diagnosed_failure_labels": _has_diagnosed_failures(episodes),
             "package_versions_present": bool(package_versions),
             "git_info_present": bool(git_info),
@@ -114,8 +114,8 @@ def _has_episode_evidence(episodes: list[EpisodeResult]) -> bool:
     return bool(episodes) and all(episode.steps for episode in episodes)
 
 
-def _has_replay_or_episode_evidence(episodes: list[EpisodeResult]) -> bool:
-    return _has_episode_evidence(episodes) or any(bool(episode.replay_path) for episode in episodes)
+def _has_replay_video_evidence(episodes: list[EpisodeResult]) -> bool:
+    return bool(episodes) and all(bool(episode.replay_path) for episode in episodes)
 
 
 def _has_diagnosed_failures(episodes: list[EpisodeResult]) -> bool:

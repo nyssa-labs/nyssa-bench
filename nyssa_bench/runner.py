@@ -186,8 +186,14 @@ class PolicyRunner:
             failure_label_source=None if success else classification.source,
             steps=steps,
         )
-        if self.out:
+        if self.out and self.capture_replay:
             episode.replay_path = write_episode_video(frames, self.out, task.task_id, episode_index)
+            if episode.replay_path is None:
+                raise RuntimeError(
+                    "Replay capture was requested, but no video could be written. "
+                    "Install and verify the simulator rendering stack, then rerun, "
+                    "or pass --no-replay for non-public smoke runs."
+                )
         return episode
 
     def _load_policy(self) -> PolicyLike:

@@ -6,7 +6,9 @@ import pytest
 
 from nyssa_bench import PolicyRunner, Suite
 from nyssa_bench.engines.base import NyssaEngine
+from nyssa_bench.core.episode import EpisodeResult, StepRecord
 from nyssa_bench.metrics.failure_mapper import FailureMapper
+from nyssa_bench.metrics.run_claims import RunClaimValidator
 from nyssa_bench.policies.robomimic_adapter import RoboMimicPolicy
 from nyssa_bench.plugins import get_plugin_registry
 
@@ -112,6 +114,47 @@ def test_runner_writes_artifacts(tmp_path: Path):
     assert (tmp_path / "failures").is_dir()
     assert (tmp_path / "plots").is_dir()
     assert (tmp_path / "report.html").exists()
+
+
+def test_public_claim_requires_replay_video_evidence(tmp_path: Path):
+    suite = Suite.load("mujoco_control_v0")
+    episodes = []
+    for task in suite.tasks:
+        for index in range(100):
+            episodes.append(
+                EpisodeResult(
+                    task_id=task.task_id,
+                    episode_index=index,
+                    seed=index,
+                    success=False,
+                    failure_label="timeout",
+                    failure_label_source="mapper",
+                    metrics={},
+                    steps=[
+                        StepRecord(
+                            observation={},
+                            action=0.0,
+                            reward=0.0,
+                            terminated=False,
+                            truncated=True,
+                            info={},
+                        )
+                    ],
+                )
+            )
+
+    validation = RunClaimValidator().validate(
+        suite=suite,
+        engine_name="mujoco",
+        episodes_per_task=100,
+        episodes=episodes,
+        out_dir=tmp_path,
+        package_versions={"mujoco": "test"},
+        git_info={"commit": "test"},
+    )
+
+    assert validation.public_claim is False
+    assert "replay_video_evidence" in validation.failures
 
 
 def test_runner_loads_duck_typed_policy_file(tmp_path: Path):

@@ -19,6 +19,42 @@ uv sync --extra dev --extra dataset --extra reports --extra video
 
 Use `mujoco` for the lightest real backend path and `maniskill` for manipulation tasks.
 
+## Rendering system packages
+
+Python packages are not enough for video-backed robotics benchmarks. Public
+NyssaBench benchmark claims require MP4 replay evidence, so install simulator
+rendering libraries before running result packs.
+
+On Ubuntu/Debian GPU machines:
+
+```bash
+bash scripts/setup_rendering_linux.sh
+vulkaninfo --summary
+nvidia-smi
+```
+
+The helper installs common GL/Vulkan/X11 runtime libraries:
+
+```txt
+libvulkan1 vulkan-tools mesa-vulkan-drivers libglvnd0 libgl1 libegl1
+libglfw3 libx11-6 libxext6 libxrender1 libxrandr2 libxinerama1
+libxcursor1 libxi6
+```
+
+If `vulkaninfo --summary` cannot see a Vulkan device, fix the host NVIDIA
+driver/ICD setup before running ManiSkill result packs. Video-less runs are
+allowed only for local smoke tests with `--no-replay`; they are not public
+benchmark results.
+
+On macOS, MuJoCo smoke runs usually need native GLFW:
+
+```bash
+brew install glfw
+```
+
+ManiSkill video-backed result packs are expected to run on Linux with a working
+NVIDIA/Vulkan stack.
+
 If you are not using `uv`, the equivalent pip command is:
 
 ```bash

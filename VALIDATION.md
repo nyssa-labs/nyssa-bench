@@ -10,7 +10,7 @@ A NyssaBench run can be described as a public benchmark result only when its
 - Known success predicate: every task maps simulator success information or a task-specific success metric.
 - Episode count: at least 100 episodes per task.
 - Seed coverage: public result packs should include at least 3 seeds per policy.
-- Evidence: every run includes episode artifacts. Replay videos are required for a replay-first public report, and their absence must be called out in `RESULTS.md`.
+- Evidence: every public run includes episode artifacts and MP4 replay videos.
 - Failure labels: failed episodes use environment or mapper labels, not silent placeholder defaults.
 - Stressors: unsupported stressors are reported and not claimed as active perturbations.
 - Reproducibility metadata: package versions, environment metadata, run config, and git metadata are present.
@@ -25,8 +25,8 @@ generated `RESULTS.md` and `manifest.json`.
 
 - `prototype_reliability_score` is a simulator reliability heuristic, not a
   real-world sim-to-real score.
-- A run without replay videos is still auditable from episode artifacts, but it
-  should not be described as video-backed failure analysis.
+- A run without replay videos is a smoke or debugging run. It must not be
+  described as a public NyssaBench benchmark result.
 - Adapter hooks for OpenVLA, diffusion, LeRobot, and RoboMimic are not public
   baseline results unless a concrete model/checkpoint and validated run artifacts
   are included.

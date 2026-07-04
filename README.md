@@ -58,6 +58,29 @@ uv sync --extra dev --extra lerobot --extra robomimic --extra vla --extra diffus
 
 Plain `python -m pip install -e ".[dev,mujoco,dataset,video,reports]"` still works if you are not using `uv`.
 
+Simulator video capture also requires system rendering libraries. On
+Ubuntu/Debian GPU machines, install and verify them before running public
+benchmark commands:
+
+```bash
+bash scripts/setup_rendering_linux.sh
+vulkaninfo --summary
+nvidia-smi
+```
+
+If `vulkaninfo --summary` cannot see a Vulkan device, ManiSkill can still run
+some CPU-side simulation paths but replay videos will not be produced. Public
+NyssaBench benchmark claims require MP4 replay evidence for every episode.
+
+On macOS, MuJoCo smoke runs usually need the Python extras plus native GLFW:
+
+```bash
+brew install glfw
+```
+
+ManiSkill video-backed result packs are expected to run on Linux machines with
+a working NVIDIA/Vulkan stack.
+
 Do not use `pip install -e ".[full]"` for normal benchmark runs. The `full`
 extra intentionally pulls heavy experimental stacks, including RoboCasa,
 Genesis, RoboMimic, LeRobot, VLA, and diffusion dependencies, and native
@@ -83,8 +106,7 @@ uv run nyssa run \
   --policy random \
   --episodes 10 \
   --seed 0 \
-  --out runs/random_mujoco_seed0 \
-  --no-replay
+  --out runs/random_mujoco_seed0
 
 uv run nyssa run \
   --suite mujoco_control_v0 \
@@ -92,8 +114,7 @@ uv run nyssa run \
   --policy random \
   --episodes 10 \
   --seed 1 \
-  --out runs/random_mujoco_seed1 \
-  --no-replay
+  --out runs/random_mujoco_seed1
 
 uv run nyssa report runs/random_mujoco_seed0
 uv run nyssa export --run runs/random_mujoco_seed0 --format lerobot

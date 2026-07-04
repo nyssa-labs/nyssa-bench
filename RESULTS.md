@@ -13,8 +13,8 @@ Latest local candidate, not committed because the run artifacts are large:
 - Policies: `random`, `scripted_oracle`, `bc_policy`
 - Seeds: `0, 1, 2`
 - Episodes: 100 per task per seed, 900 per policy
-- Validation: all 9 runs passed `public_claim_validation`
-- Replay videos: absent in this Windows/Sapien run; episode artifacts are present
+- Validation: not public under the current gate because MP4 replay videos are absent
+- Replay videos: absent in this Windows/Sapien run; episode artifacts are present for debugging only
 
 Current headline:
 
@@ -29,8 +29,9 @@ Interpretation:
 - `random` is a weak sanity check.
 - `scripted_oracle` is currently a lightweight heuristic baseline, not a strong oracle.
 - `bc_policy` is a learned baseline pipeline check, not a strong learned policy.
-- The result demonstrates reproducible real-simulator execution and failure reporting.
+- The result demonstrates reproducible real-simulator execution and basic failure reporting.
 - The result does not yet demonstrate strong manipulation performance.
+- The result is not a public NyssaBench benchmark result because it is not video-backed.
 - A stronger v0.1 should use a planner-backed oracle or a trained checkpoint that clearly beats random and the current heuristic.
 
 ## Target v0.1 Result Pack
@@ -88,7 +89,7 @@ uv run nyssa experiment \
   --out benchmark_results/maniskill_manipulation_v0
 ```
 
-Each run's `metrics.json` contains `public_claim_validation`. Only publish results whose validation passes.
+Each run's `metrics.json` contains `public_claim_validation`. Only publish results whose validation passes. Under the current gate, that requires MP4 replay videos for every episode.
 
 ## Next Improvement Target
 

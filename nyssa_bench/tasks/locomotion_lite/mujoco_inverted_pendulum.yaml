@@ -9,6 +9,7 @@ objects:
 success:
   engine_env_ids:
     mujoco: InvertedPendulum-v4
+  render_mode: rgb_array
   max_steps: 50
   success_metric: survival_steps
   min_success_steps: 50
