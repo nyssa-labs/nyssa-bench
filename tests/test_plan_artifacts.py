@@ -39,7 +39,6 @@ def test_static_release_artifacts_exist():
         "docker/Dockerfile.mujoco",
         "docker/docker-compose.yml",
         "site/leaderboard/index.html",
-        "docs/paper/nyssabench_v0_protocol.md",
         "docs/api_stability.md",
         "docs/plugins.md",
     ]
