@@ -11,6 +11,7 @@ from nyssa_bench.metrics.failure_mapper import FailureMapper
 from nyssa_bench.metrics.run_claims import RunClaimValidator
 from nyssa_bench.policies.robomimic_adapter import RoboMimicPolicy
 from nyssa_bench.plugins import get_plugin_registry
+from nyssa_bench.validation.run_claim import RunClaimValidator as StableRunClaimValidator
 
 
 class UnitEngine(NyssaEngine):
@@ -155,6 +156,10 @@ def test_public_claim_requires_replay_video_evidence(tmp_path: Path):
 
     assert validation.public_claim is False
     assert "replay_video_evidence" in validation.failures
+
+
+def test_stable_validation_import_path():
+    assert StableRunClaimValidator is RunClaimValidator
 
 
 def test_runner_loads_duck_typed_policy_file(tmp_path: Path):
