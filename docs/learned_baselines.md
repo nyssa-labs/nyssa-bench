@@ -84,3 +84,32 @@ use `maniskill_planner_bc_v0`. The official demo generator records actions in
 `pd_joint_pos`; this suite uses the same control mode. Do not compare those
 checkpoints against `maniskill_manipulation_v0`, which uses end-effector delta
 control for the repo-local heuristic baseline.
+
+For the repo-local linear BC baseline, train one checkpoint per task and use the
+task-routed policy:
+
+```bash
+mkdir -p checkpoints/bc_by_task
+
+uv run nyssa train-bc \
+  benchmark_results/maniskill_manipulation_v0_planner_state_demos/maniskill_pick_cube/episodes.json \
+  --out checkpoints/bc_by_task/maniskill_pick_cube.json
+
+uv run nyssa train-bc \
+  benchmark_results/maniskill_manipulation_v0_planner_state_demos/maniskill_stack_cube/episodes.json \
+  --out checkpoints/bc_by_task/maniskill_stack_cube.json
+
+uv run nyssa train-bc \
+  benchmark_results/maniskill_manipulation_v0_planner_state_demos/maniskill_push_cube/episodes.json \
+  --out checkpoints/bc_by_task/maniskill_push_cube.json
+
+NYSSA_TASK_BC_DIR=checkpoints/bc_by_task \
+uv run nyssa run \
+  --suite maniskill_planner_bc_v0 \
+  --engine maniskill \
+  --policy task_bc_policy \
+  --episodes 10 \
+  --seed 0 \
+  --out runs/task_bc_planner_smoke \
+  --capture-replay
+```

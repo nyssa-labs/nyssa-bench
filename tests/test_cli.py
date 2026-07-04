@@ -209,6 +209,36 @@ def test_linear_bc_resizes_action_to_live_action_space():
     assert action.tolist() == [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
 
 
+def test_task_routed_linear_bc_uses_task_checkpoint(tmp_path: Path):
+    import numpy as np
+
+    from nyssa_bench.baselines.simple_bc import LinearBCPolicy, TaskRoutedLinearBCPolicy
+
+    checkpoint_dir = tmp_path / "checkpoints"
+    LinearBCPolicy(
+        weights=np.zeros((4, 2), dtype=float),
+        bias=np.asarray([0.25, -0.25], dtype=float),
+        feature_dim=4,
+        action_size=2,
+    ).save(checkpoint_dir / "maniskill_pick_cube.json")
+    policy = TaskRoutedLinearBCPolicy(checkpoint_dir)
+    task = type("Task", (), {"task_id": "maniskill_pick_cube_joint"})()
+    policy.reset(task=task)
+    observation = {
+        "raw": [0.0],
+        "action_space": {
+            "type": "box",
+            "shape": [2],
+            "low": [-1.0, -1.0],
+            "high": [1.0, 1.0],
+        },
+    }
+
+    action = policy.predict_action(observation)
+
+    assert action.tolist() == [0.25, -0.25]
+
+
 def test_cli_imports_maniskill_demos(tmp_path: Path):
     pytest.importorskip("h5py")
     import h5py

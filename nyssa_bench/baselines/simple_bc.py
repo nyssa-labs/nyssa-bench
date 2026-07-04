@@ -48,6 +48,33 @@ class LinearBCPolicy:
         return path
 
 
+class TaskRoutedLinearBCPolicy:
+    def __init__(self, checkpoint_dir: str | Path) -> None:
+        self.checkpoint_dir = Path(checkpoint_dir)
+        self.current_task_id: str | None = None
+        self._models: dict[str, LinearBCPolicy] = {}
+
+    def reset(self, task: Any | None = None, seed: int | None = None) -> None:
+        self.current_task_id = str(getattr(task, "task_id", "")) or None
+
+    def predict_action(self, observation: dict[str, Any]) -> Any:
+        if not self.current_task_id:
+            raise RuntimeError("Task-routed BC policy was used before reset(task=...)")
+        return self._model_for_task(self.current_task_id).predict_action(observation)
+
+    def _model_for_task(self, task_id: str) -> LinearBCPolicy:
+        key = _checkpoint_key(task_id)
+        if key not in self._models:
+            path = self.checkpoint_dir / f"{key}.json"
+            if not path.exists():
+                raise RuntimeError(
+                    f"Task BC checkpoint not found for task '{task_id}': {path}. "
+                    "Train one checkpoint per task under NYSSA_TASK_BC_DIR."
+                )
+            self._models[key] = LinearBCPolicy.load(path)
+        return self._models[key]
+
+
 def train_linear_bc(
     episodes_path: str | Path,
     out: str | Path,
@@ -100,3 +127,17 @@ def create_bc_policy() -> LinearBCPolicy:
             "or set NYSSA_BC_POLICY=module:factory."
         )
     return LinearBCPolicy.load(checkpoint)
+
+
+def create_task_bc_policy() -> TaskRoutedLinearBCPolicy:
+    checkpoint_dir = os.getenv("NYSSA_TASK_BC_DIR", "checkpoints/bc_by_task")
+    return TaskRoutedLinearBCPolicy(checkpoint_dir)
+
+
+def _checkpoint_key(task_id: str) -> str:
+    aliases = {
+        "maniskill_pick_cube_joint": "maniskill_pick_cube",
+        "maniskill_stack_cube_joint": "maniskill_stack_cube",
+        "maniskill_push_cube_joint": "maniskill_push_cube",
+    }
+    return aliases.get(task_id, task_id.removesuffix("_joint"))

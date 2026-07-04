@@ -13,6 +13,7 @@ from nyssa_bench.policies.openvla_adapter import OpenVLAPolicy
 from nyssa_bench.policies.random_policy import RandomPolicy
 from nyssa_bench.policies.robomimic_adapter import RoboMimicPolicy
 from nyssa_bench.policies.scripted_oracle_policy import ScriptedOraclePolicy
+from nyssa_bench.policies.task_bc_policy import TaskBCPolicy
 from nyssa_bench.plugins import get_plugin_registry
 
 
@@ -34,6 +35,7 @@ POLICY_REGISTRY: dict[str, type[Policy]] = {
     "random": RandomPolicy,
     "scripted_oracle": ScriptedOraclePolicy,
     "bc_policy": BCPolicy,
+    "task_bc_policy": TaskBCPolicy,
     "lerobot": LeRobotPolicy,
     "robomimic": RoboMimicPolicy,
     "diffusion": DiffusionPolicyAdapter,
@@ -44,6 +46,7 @@ POLICY_SUPPORT_TIER: dict[str, str] = {
     "random": "sanity_baseline",
     "scripted_oracle": "oracle_baseline_adapter",
     "bc_policy": "learned_baseline_adapter",
+    "task_bc_policy": "task_routed_learned_baseline_adapter",
     "lerobot": "adapter_hook",
     "robomimic": "adapter_hook",
     "diffusion": "adapter_hook",

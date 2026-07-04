@@ -223,6 +223,10 @@ uv run nyssa run \
   --capture-replay
 ```
 
+For the repo-local linear BC baseline, prefer `task_bc_policy` with one
+checkpoint per task. See `docs/learned_baselines.md` for the exact training
+commands.
+
 Validate optional simulator backends:
 
 ```bash
