@@ -17,6 +17,7 @@ from nyssa_bench.datasets.export_jsonl import export_jsonl
 from nyssa_bench.datasets.export_lerobot import export_lerobot
 from nyssa_bench.datasets.export_parquet import export_parquet
 from nyssa_bench.datasets.export_robomimic import export_robomimic_hdf5
+from nyssa_bench.datasets.import_maniskill import import_maniskill_demos
 from nyssa_bench.reports.comparison import compare_runs, save_comparison_report, save_leaderboard
 from nyssa_bench.reports.html_report import Report
 from nyssa_bench.reports.result_pack import write_experiment_manifest, write_results_markdown
@@ -95,6 +96,10 @@ def main(argv: list[str] | None = None) -> int:
     train_robomimic_parser.add_argument("--config", required=True)
     train_robomimic_parser.add_argument("--name")
     train_robomimic_parser.add_argument("--debug", action="store_true")
+
+    import_maniskill_parser = subparsers.add_parser("import-maniskill-demos")
+    import_maniskill_parser.add_argument("--input", required=True)
+    import_maniskill_parser.add_argument("--out", required=True)
 
     validate_parser = subparsers.add_parser("validate")
     validate_parser.add_argument("target")
@@ -214,6 +219,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "train-robomimic":
         train_robomimic(args.config, name=args.name, debug=args.debug)
         print("robomimic_training: complete")
+        return 0
+
+    if args.command == "import-maniskill-demos":
+        paths = import_maniskill_demos(args.input, args.out)
+        for label, path in paths.items():
+            print(f"{label}: {path}")
         return 0
 
     if args.command == "validate":

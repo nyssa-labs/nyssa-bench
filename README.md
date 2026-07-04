@@ -199,6 +199,15 @@ runs/random_mujoco_seed0/
 `-- report.html
 ```
 
+Import official ManiSkill motion-planning demonstrations before training
+planner-backed learned baselines:
+
+```bash
+uv run nyssa import-maniskill-demos \
+  --input demos/maniskill_motionplanning \
+  --out benchmark_results/maniskill_manipulation_v0_planner_demos
+```
+
 Validate optional simulator backends:
 
 ```bash

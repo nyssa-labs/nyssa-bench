@@ -182,6 +182,36 @@ def test_cli_train_bc_writes_checkpoint(tmp_path: Path):
     assert out.exists()
 
 
+def test_cli_imports_maniskill_demos(tmp_path: Path):
+    pytest.importorskip("h5py")
+    import h5py
+    import numpy as np
+
+    demos = tmp_path / "demos"
+    demos.mkdir()
+    h5_path = demos / "PickCube-v1.motionplanning.h5"
+    with h5py.File(h5_path, "w") as handle:
+        handle.attrs["env_id"] = "PickCube-v1"
+        traj = handle.create_group("traj_0")
+        traj.attrs["episode_seed"] = 7
+        traj.create_dataset("actions", data=np.zeros((3, 4), dtype=np.float32))
+        traj.create_dataset("success", data=np.asarray([False, False, True]))
+        obs = traj.create_group("obs")
+        obs.create_dataset("agent_qpos", data=np.zeros((4, 9), dtype=np.float32))
+
+    out = tmp_path / "imported"
+    assert main(["import-maniskill-demos", "--input", str(demos), "--out", str(out)]) == 0
+
+    episodes = json.loads((out / "episodes.json").read_text(encoding="utf-8"))
+    assert len(episodes) == 1
+    assert episodes[0]["task_id"] == "maniskill_pick_cube"
+    assert episodes[0]["seed"] == 7
+    assert episodes[0]["success"] is True
+    assert len(episodes[0]["steps"]) == 3
+    assert episodes[0]["steps"][0]["observation"]["action_space"]["shape"] == [4]
+    assert (out / "maniskill_pick_cube" / "episodes.json").exists()
+
+
 def test_scripts_smoke(tmp_path: Path):
     from scripts.release_checklist import main as release_checklist
     from scripts.validate_backend import main as validate_backend

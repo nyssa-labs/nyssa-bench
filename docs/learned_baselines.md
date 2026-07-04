@@ -5,7 +5,18 @@ the focused ManiSkill result pack.
 
 ## Train BC
 
-Generate scripted demonstrations first:
+Generate or import demonstrations first. The repo-local `scripted_oracle` is a
+lightweight heuristic and should not be used as a strong demo source unless it
+clearly solves the target suite. For stronger ManiSkill demos, generate official
+motion-planning trajectories and import them:
+
+```bash
+uv run nyssa import-maniskill-demos \
+  --input demos/maniskill_motionplanning \
+  --out benchmark_results/maniskill_manipulation_v0_planner_demos
+```
+
+For smoke testing only, you can generate repo-local scripted demonstrations:
 
 ```bash
 uv run nyssa experiment \
@@ -55,3 +66,15 @@ native planning dependencies such as `mplib` and Pinocchio. On Windows/Python
 planner-backed oracle for publishable upper-bound numbers when those dependencies
 are available; otherwise label the repo-local `scripted_oracle` as a lightweight
 heuristic baseline.
+
+After generating ManiSkill motion-planning HDF5 files, convert them into Nyssa
+episode artifacts:
+
+```bash
+uv run nyssa import-maniskill-demos \
+  --input demos/maniskill_motionplanning \
+  --out benchmark_results/maniskill_manipulation_v0_planner_demos
+```
+
+This writes `episodes.json`, `episodes.jsonl`, `manifest.json`, and per-task
+episode files under the output directory.
