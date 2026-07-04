@@ -1,4 +1,12 @@
-from nyssa_bench.arena import compare_episode_pairs
+import json
+
+from nyssa_bench.arena import (
+    PreferenceRecord,
+    compare_episode_pairs,
+    save_arena_report,
+    save_pairwise_results,
+    save_preference_table,
+)
 from nyssa_bench.core.episode import EpisodeResult
 
 
@@ -23,6 +31,31 @@ def test_compare_episode_pairs_counts_wins_and_failure_deltas():
     assert summary.outcomes[0].winner == "a"
 
 
+def test_preference_schema_and_arena_artifacts(tmp_path):
+    summary = compare_episode_pairs(
+        [_episode("pick", 0, 0, success=True)],
+        [_episode("pick", 0, 0, success=False, failure_label="timeout")],
+    )
+    preference = PreferenceRecord(
+        task_id="pick",
+        seed=0,
+        episode_index=0,
+        choice="policy_a",
+        reason="cleaner completion",
+        evaluator_id="eval_1",
+    )
+
+    assert PreferenceRecord.from_dict(preference.to_dict()) == preference
+    results_path = save_pairwise_results(summary, tmp_path)
+    table_path = save_preference_table([preference], tmp_path)
+    report_path = save_arena_report(summary, tmp_path)
+
+    first_line = results_path.read_text(encoding="utf-8").splitlines()[0]
+    assert json.loads(first_line)["winner"] == "policy_a"
+    assert "cleaner completion" in table_path.read_text(encoding="utf-8")
+    assert "Total pairs: 1" in report_path.read_text(encoding="utf-8")
+
+
 def _episode(task_id: str, seed: int, episode_index: int, *, success: bool, failure_label: str | None = None):
     return EpisodeResult(
         task_id=task_id,
@@ -33,4 +66,3 @@ def _episode(task_id: str, seed: int, episode_index: int, *, success: bool, fail
         failure_label_source="mapper" if failure_label else None,
         metrics={},
     )
-

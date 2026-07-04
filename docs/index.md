@@ -15,6 +15,7 @@ Start here:
 - [Result tiers](result_tiers.md)
 - [Validation protocol](validation_protocol.md)
 - [Benchmark audit checklist](benchmark_audit_checklist.md)
+- [Stressor protocol](stressor_protocol.md)
 - [Pairwise evaluation protocol](pairwise_evaluation_protocol.md)
 - [VLA robustness protocol](vla_robustness_protocol.md)
 - [Failure and recovery metrics](failure_and_recovery_metrics.md)
