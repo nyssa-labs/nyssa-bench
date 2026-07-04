@@ -89,7 +89,7 @@ def write_robomimic_bc_config(
             "batch_size": int(batch_size),
             "num_data_workers": 0,
             "hdf5_cache_mode": "low_dim",
-            "hdf5_normalize_obs": True,
+            "hdf5_normalize_obs": False,
             "seed": int(seed),
         },
         "observation": {

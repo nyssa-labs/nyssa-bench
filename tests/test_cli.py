@@ -341,6 +341,7 @@ def test_cli_writes_robomimic_config(tmp_path: Path):
     assert Path(payload["train"]["output_dir"]).is_absolute()
     assert payload["train"]["num_epochs"] == 3
     assert payload["train"]["batch_size"] == 8
+    assert payload["train"]["hdf5_normalize_obs"] is False
     assert payload["observation"]["modalities"]["obs"]["low_dim"] == ["flat"]
     assert payload["experiment"]["rollout"]["enabled"] is False
 
