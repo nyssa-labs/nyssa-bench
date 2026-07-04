@@ -56,7 +56,13 @@ uv sync --extra dev --extra dataset --extra reports --extra video
 uv sync --extra dev --extra lerobot --extra robomimic --extra vla --extra diffusion
 ```
 
-Plain `pip install -e ".[dev,mujoco]"` still works if you are not using `uv`.
+Plain `python -m pip install -e ".[dev,mujoco,dataset,video,reports]"` still works if you are not using `uv`.
+
+Do not use `pip install -e ".[full]"` for normal benchmark runs. The `full`
+extra intentionally pulls heavy experimental stacks, including RoboCasa,
+Genesis, RoboMimic, LeRobot, VLA, and diffusion dependencies, and native
+packages in those stacks can fail on otherwise valid MuJoCo or ManiSkill
+machines. Install only the extras for the workflow you are running.
 
 Docker images are provided under `docker/` for core, ManiSkill, and MuJoCo environments.
 
