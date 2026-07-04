@@ -225,7 +225,8 @@ uv run nyssa run \
 
 For the repo-local linear BC baseline, prefer `task_bc_policy` with one
 checkpoint per task. See `docs/learned_baselines.md` for the exact training
-commands.
+commands. For stronger learned baselines, use the RoboMimic export and
+`robomimic` or `task_robomimic` policy adapters documented there.
 
 Validate optional simulator backends:
 

@@ -31,6 +31,12 @@ def normalize_action(action: Any, size: int) -> np.ndarray:
     return np.asarray([*values, *([0.0] * (size - len(values)))], dtype=float)
 
 
+def fit_action_to_observation(action: Any, observation: dict[str, Any]) -> np.ndarray:
+    low, high, shape = action_bounds(observation)
+    flat = normalize_action(action, int(np.prod(shape)))
+    return np.clip(flat.reshape(shape), low, high)
+
+
 def find_vector(observation: dict[str, Any], names: tuple[str, ...], min_size: int = 3) -> np.ndarray | None:
     found = _find_named_value(observation.get("raw", observation), names)
     if found is None:

@@ -11,7 +11,7 @@ from nyssa_bench.policies.diffusion_policy_adapter import DiffusionPolicyAdapter
 from nyssa_bench.policies.lerobot_adapter import LeRobotPolicy
 from nyssa_bench.policies.openvla_adapter import OpenVLAPolicy
 from nyssa_bench.policies.random_policy import RandomPolicy
-from nyssa_bench.policies.robomimic_adapter import RoboMimicPolicy
+from nyssa_bench.policies.robomimic_adapter import RoboMimicPolicy, TaskRoboMimicPolicy
 from nyssa_bench.policies.scripted_oracle_policy import ScriptedOraclePolicy
 from nyssa_bench.policies.task_bc_policy import TaskBCPolicy
 from nyssa_bench.plugins import get_plugin_registry
@@ -38,6 +38,7 @@ POLICY_REGISTRY: dict[str, type[Policy]] = {
     "task_bc_policy": TaskBCPolicy,
     "lerobot": LeRobotPolicy,
     "robomimic": RoboMimicPolicy,
+    "task_robomimic": TaskRoboMimicPolicy,
     "diffusion": DiffusionPolicyAdapter,
     "openvla": OpenVLAPolicy,
 }
@@ -49,6 +50,7 @@ POLICY_SUPPORT_TIER: dict[str, str] = {
     "task_bc_policy": "task_routed_learned_baseline_adapter",
     "lerobot": "adapter_hook",
     "robomimic": "adapter_hook",
+    "task_robomimic": "task_routed_robomimic_adapter",
     "diffusion": "adapter_hook",
     "openvla": "adapter_hook",
 }

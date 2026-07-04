@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from nyssa_bench.baselines.features import action_bounds, flatten_observation, normalize_action
+from nyssa_bench.baselines.features import action_bounds, fit_action_to_observation, flatten_observation, normalize_action
 
 
 class LinearBCPolicy:
@@ -20,9 +20,7 @@ class LinearBCPolicy:
     def predict_action(self, observation: dict[str, Any]) -> Any:
         features = flatten_observation(observation, self.feature_dim)
         action = features @ self.weights + self.bias
-        low, high, shape = action_bounds(observation)
-        action = _resize_action(action, int(np.prod(shape)))
-        return np.clip(action.reshape(shape), low, high)
+        return fit_action_to_observation(action, observation)
 
     @classmethod
     def load(cls, path: str | Path) -> "LinearBCPolicy":
@@ -108,15 +106,6 @@ def train_linear_bc(
         action_size=action_size,
     )
     return policy.save(out)
-
-
-def _resize_action(action: np.ndarray, size: int) -> np.ndarray:
-    flat = np.asarray(action, dtype=float).reshape(-1)
-    if flat.size == size:
-        return flat
-    if flat.size > size:
-        return flat[:size]
-    return np.pad(flat, (0, size - flat.size))
 
 
 def create_bc_policy() -> LinearBCPolicy:

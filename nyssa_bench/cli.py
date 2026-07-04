@@ -24,7 +24,7 @@ from nyssa_bench.reports.result_pack import write_experiment_manifest, write_res
 from nyssa_bench.reports.scorecard import write_scorecard
 from nyssa_bench.runner import PolicyRunner
 from nyssa_bench.metrics.run_claims import PUBLIC_CLAIM_ENGINES
-from nyssa_bench.baselines.robomimic_bc import train_robomimic
+from nyssa_bench.baselines.robomimic_bc import train_robomimic, write_robomimic_bc_config
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -96,6 +96,16 @@ def main(argv: list[str] | None = None) -> int:
     train_robomimic_parser.add_argument("--config", required=True)
     train_robomimic_parser.add_argument("--name")
     train_robomimic_parser.add_argument("--debug", action="store_true")
+
+    robomimic_config_parser = subparsers.add_parser("write-robomimic-config")
+    robomimic_config_parser.add_argument("--data", required=True)
+    robomimic_config_parser.add_argument("--out", required=True)
+    robomimic_config_parser.add_argument("--output-dir", default="checkpoints/robomimic")
+    robomimic_config_parser.add_argument("--name", default="nyssa_robomimic_bc_flat")
+    robomimic_config_parser.add_argument("--epochs", type=int, default=50)
+    robomimic_config_parser.add_argument("--batch-size", type=int, default=64)
+    robomimic_config_parser.add_argument("--seed", type=int, default=1)
+    robomimic_config_parser.add_argument("--learning-rate", type=float, default=1e-4)
 
     import_maniskill_parser = subparsers.add_parser("import-maniskill-demos")
     import_maniskill_parser.add_argument("--input", required=True)
@@ -219,6 +229,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "train-robomimic":
         train_robomimic(args.config, name=args.name, debug=args.debug)
         print("robomimic_training: complete")
+        return 0
+
+    if args.command == "write-robomimic-config":
+        out = write_robomimic_bc_config(
+            data=args.data,
+            out=args.out,
+            output_dir=args.output_dir,
+            name=args.name,
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            seed=args.seed,
+            learning_rate=args.learning_rate,
+        )
+        print(f"robomimic_config: {out}")
         return 0
 
     if args.command == "import-maniskill-demos":

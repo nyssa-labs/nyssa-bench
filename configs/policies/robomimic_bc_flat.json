@@ -16,8 +16,8 @@
     "validation_epoch_every_n_steps": 100
   },
   "train": {
-    "data": "benchmark_results/maniskill_manipulation_v0_demos/scripted_oracle/seed_0/robomimic.hdf5",
-    "output_dir": "checkpoints/robomimic",
+    "data": "benchmark_results/maniskill_manipulation_v0_planner_state_demos/robomimic_flat.hdf5",
+    "output_dir": "checkpoints/robomimic_planner",
     "num_epochs": 50,
     "batch_size": 64,
     "num_data_workers": 0,

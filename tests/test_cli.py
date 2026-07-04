@@ -209,6 +209,44 @@ def test_linear_bc_resizes_action_to_live_action_space():
     assert action.tolist() == [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
 
 
+def test_robomimic_policy_flattens_and_clips_action():
+    import numpy as np
+
+    from nyssa_bench.policies.robomimic_adapter import RoboMimicPolicy
+
+    class DummyRoboMimic:
+        def __init__(self) -> None:
+            self.started = False
+            self.last_obs = None
+
+        def start_episode(self) -> None:
+            self.started = True
+
+        def get_action(self, obs):
+            self.last_obs = obs
+            return np.asarray([2.0, -2.0, 0.5])
+
+    model = DummyRoboMimic()
+    policy = RoboMimicPolicy(model=model)
+    policy.reset()
+    observation = {
+        "raw": {"x": [1.0, 2.0]},
+        "action_space": {
+            "type": "box",
+            "shape": [2],
+            "low": [-1.0, -1.0],
+            "high": [1.0, 1.0],
+        },
+    }
+
+    action = policy.act(observation)
+
+    assert model.started is True
+    assert set(model.last_obs) == {"flat"}
+    assert model.last_obs["flat"].shape == (256,)
+    assert action.tolist() == [1.0, -1.0]
+
+
 def test_task_routed_linear_bc_uses_task_checkpoint(tmp_path: Path):
     import numpy as np
 
@@ -267,6 +305,35 @@ def test_cli_imports_maniskill_demos(tmp_path: Path):
     assert len(episodes[0]["steps"]) == 3
     assert episodes[0]["steps"][0]["observation"]["action_space"]["shape"] == [4]
     assert (out / "maniskill_pick_cube" / "episodes.json").exists()
+
+
+def test_cli_writes_robomimic_config(tmp_path: Path):
+    data = tmp_path / "data.hdf5"
+    data.write_bytes(b"")
+    out = tmp_path / "robomimic.json"
+
+    assert (
+        main(
+            [
+                "write-robomimic-config",
+                "--data",
+                str(data),
+                "--out",
+                str(out),
+                "--epochs",
+                "3",
+                "--batch-size",
+                "8",
+            ]
+        )
+        == 0
+    )
+
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["train"]["data"] == str(data)
+    assert payload["train"]["num_epochs"] == 3
+    assert payload["train"]["batch_size"] == 8
+    assert payload["observation"]["modalities"]["obs"]["low_dim"] == ["flat"]
 
 
 def test_scripts_smoke(tmp_path: Path):
