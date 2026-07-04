@@ -1,0 +1,6 @@
+suite_id: maniskill_planner_bc_v0
+description: ManiSkill manipulation suite aligned to official Panda motion-planning demonstrations.
+tasks:
+  - maniskill_pick_cube_joint
+  - maniskill_stack_cube_joint
+  - maniskill_push_cube_joint

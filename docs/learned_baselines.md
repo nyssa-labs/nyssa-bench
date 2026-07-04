@@ -78,3 +78,9 @@ uv run nyssa import-maniskill-demos \
 
 This writes `episodes.json`, `episodes.jsonl`, `manifest.json`, and per-task
 episode files under the output directory.
+
+When evaluating BC trained from official ManiSkill Panda motion-planning demos,
+use `maniskill_planner_bc_v0`. The official demo generator records actions in
+`pd_joint_pos`; this suite uses the same control mode. Do not compare those
+checkpoints against `maniskill_manipulation_v0`, which uses end-effector delta
+control for the repo-local heuristic baseline.

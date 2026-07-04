@@ -1,0 +1,20 @@
+task_id: maniskill_push_cube_joint
+engine: maniskill
+robot: panda
+scene: maniskill_push_cube
+description: PushCube environment using the official ManiSkill Panda planner control mode.
+objects:
+  - name: cube
+    type: cube
+success:
+  engine_env_ids:
+    maniskill: PushCube-v1
+  success_info_keys: [success, is_success, success_once]
+  obs_mode: state_dict
+  control_mode: pd_joint_pos
+  render_mode: rgb_array
+  max_steps: 100
+randomization:
+  seed: true
+metrics: [success_rate, completion_time, path_efficiency]
+failure_labels: [missed_target, unstable_contact, timeout, unknown_failure]

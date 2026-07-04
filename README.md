@@ -208,6 +208,21 @@ uv run nyssa import-maniskill-demos \
   --out benchmark_results/maniskill_manipulation_v0_planner_demos
 ```
 
+Evaluate behavior-cloned policies from those planner demos with the
+planner-aligned suite:
+
+```bash
+NYSSA_BC_CHECKPOINT=checkpoints/bc_policy.json \
+uv run nyssa run \
+  --suite maniskill_planner_bc_v0 \
+  --engine maniskill \
+  --policy bc_policy \
+  --episodes 10 \
+  --seed 0 \
+  --out runs/bc_planner_smoke \
+  --capture-replay
+```
+
 Validate optional simulator backends:
 
 ```bash

@@ -78,6 +78,14 @@ def test_suite_loads_tasks():
     ]
     assert all(task.success["control_mode"] == "pd_ee_delta_pose" for task in focused.tasks)
 
+    planner_bc = Suite.load("maniskill_planner_bc_v0")
+    assert [task.task_id for task in planner_bc.tasks] == [
+        "maniskill_pick_cube_joint",
+        "maniskill_stack_cube_joint",
+        "maniskill_push_cube_joint",
+    ]
+    assert all(task.success["control_mode"] == "pd_joint_pos" for task in planner_bc.tasks)
+
     mujoco = Suite.load("mujoco_control_v0")
     assert mujoco.tasks[0].success["engine_env_ids"]["mujoco"] == "Reacher-v4"
 

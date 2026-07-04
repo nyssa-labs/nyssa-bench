@@ -1,0 +1,20 @@
+task_id: maniskill_pick_cube_joint
+engine: maniskill
+robot: panda
+scene: maniskill_pick_cube
+description: PickCube environment using the official ManiSkill Panda planner control mode.
+objects:
+  - name: cube
+    type: cube
+success:
+  engine_env_ids:
+    maniskill: PickCube-v1
+  success_info_keys: [success, is_success, success_once]
+  obs_mode: state_dict
+  control_mode: pd_joint_pos
+  render_mode: rgb_array
+  max_steps: 100
+randomization:
+  seed: true
+metrics: [success_rate, completion_time, collision_count, grasp_success_rate]
+failure_labels: [bad_grasp, object_slip, missed_target, timeout, unknown_failure]

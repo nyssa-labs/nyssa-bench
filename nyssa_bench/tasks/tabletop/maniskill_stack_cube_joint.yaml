@@ -1,0 +1,22 @@
+task_id: maniskill_stack_cube_joint
+engine: maniskill
+robot: panda
+scene: maniskill_stack_cube
+description: StackCube environment using the official ManiSkill Panda planner control mode.
+objects:
+  - name: cube_a
+    type: cube
+  - name: cube_b
+    type: cube
+success:
+  engine_env_ids:
+    maniskill: StackCube-v1
+  success_info_keys: [success, is_success, success_once]
+  obs_mode: state_dict
+  control_mode: pd_joint_pos
+  render_mode: rgb_array
+  max_steps: 140
+randomization:
+  seed: true
+metrics: [success_rate, completion_time, collision_count, object_slip_rate]
+failure_labels: [bad_grasp, object_slip, unstable_contact, timeout, unknown_failure]
