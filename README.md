@@ -77,6 +77,9 @@ nvidia-smi
 If `vulkaninfo --summary` cannot see a Vulkan device, ManiSkill can still run
 some CPU-side simulation paths but replay videos will not be produced. Public
 NyssaBench benchmark claims require MP4 replay evidence for every episode.
+If `vulkaninfo --summary` reports only `llvmpipe`, the machine is using CPU
+Vulkan. Install the NVIDIA Vulkan ICD/GL packages that match the host driver,
+for example `nvidia-utils-535` and `libnvidia-gl-535` on driver branch 535.
 
 On macOS, MuJoCo smoke runs usually need the Python extras plus native GLFW:
 

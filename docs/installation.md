@@ -41,10 +41,21 @@ libglfw3 libx11-6 libxext6 libxrender1 libxrandr2 libxinerama1
 libxcursor1 libxi6
 ```
 
+On NVIDIA GPU machines, Vulkan also needs the NVIDIA ICD/GL packages matching
+the installed driver branch. For example, on driver branch 535:
+
+```bash
+sudo apt-get install -y nvidia-utils-535 libnvidia-gl-535
+```
+
 If `vulkaninfo --summary` cannot see a Vulkan device, fix the host NVIDIA
 driver/ICD setup before running ManiSkill result packs. Video-less runs are
 allowed only for local smoke tests with `--no-replay`; they are not public
 benchmark results.
+
+If `vulkaninfo --summary` lists only `llvmpipe`, Vulkan is using CPU rendering.
+That is not sufficient for ManiSkill video-backed public result packs; rerun on
+a machine or container where the NVIDIA Vulkan ICD is exposed.
 
 On macOS, MuJoCo smoke runs usually need native GLFW:
 
