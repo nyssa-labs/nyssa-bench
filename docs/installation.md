@@ -19,6 +19,27 @@ uv sync --extra dev --extra dataset --extra reports --extra video
 
 Use `mujoco` for the lightest real backend path and `maniskill` for manipulation tasks.
 
+## ManiSkill motion-planning ABI
+
+Use Python 3.10 and NumPy 1.26 for ManiSkill motion-planning demos. The
+planner stack imports compiled packages such as `toppra`; NumPy 2 can trigger
+`numpy.core.multiarray failed to import` when those extensions were built
+against the NumPy 1.x ABI.
+
+If an existing venv has NumPy 2 installed, repair it before generating
+motion-planning demonstrations:
+
+```bash
+uv pip install "numpy==1.26.4"
+uv pip install --force-reinstall --no-build-isolation --no-cache-dir "toppra==0.6.3"
+python - <<'PY'
+import numpy, toppra, mplib
+print("numpy", numpy.__version__)
+print("toppra", toppra.__version__)
+print("mplib import ok")
+PY
+```
+
 ## Rendering system packages
 
 Python packages are not enough for video-backed robotics benchmarks. Public
@@ -85,12 +106,12 @@ python -m pip install -e ".[dev,mujoco,video,reports]"
 | `mujoco` | MuJoCo adapter runtime dependencies. |
 | `lerobot` | LeRobot policy and dataset integration dependencies. |
 | `robomimic` | robomimic baseline dependencies. |
-| `robocasa` | Best-effort source install for RoboCasa and its robosuite dependency. |
+| `robocasa` | Experimental adapter contract only; install RoboCasa from upstream in a separate environment. |
 | `vla` | Shared PyTorch/Transformers dependencies for VLA adapters such as OpenVLA. |
 | `diffusion` | Diffusion policy baseline dependencies. |
 | `experimental` | Experimental Genesis dependency. RoboCasa may still require a source install depending on upstream packaging. |
 | `all` | Everything except experimental backends. |
-| `full` | All declared extras, including experimental/source backend dependencies. |
+| `full` | Declared heavy extras except RoboCasa, which currently needs a separate upstream environment. |
 
 OpenVLA and some robotics diffusion-policy codebases are commonly installed from their upstream GitHub repositories rather than as stable PyPI packages. NyssaBench declares their common runtime stack in `vla` and `diffusion`, while the model code/checkpoints should be installed according to the upstream project instructions.
 

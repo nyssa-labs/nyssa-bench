@@ -34,6 +34,9 @@ report.save("runs/random_mujoco/report.html")
 Use Python 3.10 for ManiSkill/Linux runs. Some ManiSkill planning dependencies
 publish wheels for CPython 3.10 but not newer Python ABIs, so Python 3.12 can
 fail during dependency resolution.
+The ManiSkill install path pins NumPy below 2.0 because ManiSkill
+motion-planning dependencies such as `toppra` include compiled extensions that
+can fail with a NumPy 2 ABI mismatch.
 
 ```bash
 uv python install 3.10
@@ -53,6 +56,14 @@ Use ManiSkill for the focused manipulation result pack:
 
 ```bash
 uv sync --extra dev --extra maniskill --extra dataset --extra video --extra reports
+```
+
+If an older environment already installed NumPy 2, reinstall the planning stack
+after pulling the latest dependency pin:
+
+```bash
+uv pip install "numpy==1.26.4"
+uv pip install --force-reinstall --no-build-isolation --no-cache-dir "toppra==0.6.3"
 ```
 
 Optional policy/report/export stacks:
@@ -91,14 +102,14 @@ ManiSkill video-backed result packs are expected to run on Linux machines with
 a working NVIDIA/Vulkan stack.
 
 Do not use `pip install -e ".[full]"` for normal benchmark runs. The `full`
-extra intentionally pulls heavy experimental stacks, including RoboCasa,
-Genesis, RoboMimic, LeRobot, VLA, and diffusion dependencies, and native
-packages in those stacks can fail on otherwise valid MuJoCo or ManiSkill
-machines. Install only the extras for the workflow you are running.
+extra intentionally pulls heavy experimental stacks, including Genesis,
+RoboMimic, LeRobot, VLA, and diffusion dependencies, and native packages in
+those stacks can fail on otherwise valid MuJoCo or ManiSkill machines. Install
+only the extras for the workflow you are running.
 
 Docker images are provided under `docker/` for core, ManiSkill, and MuJoCo environments.
 
-Experimental adapters for RoboCasa and Genesis are included in the repo. Their integration contracts live in `configs/experiments/`; contract validation works without heavyweight assets, and full simulator runs require concrete task-to-scene mappings plus upstream setup. Use `.[full]` only when you intentionally want the heavy experimental/source dependencies.
+Experimental adapters for RoboCasa and Genesis are included in the repo. Their integration contracts live in `configs/experiments/`; contract validation works without heavyweight assets, and full simulator runs require concrete task-to-scene mappings plus upstream setup. Install RoboCasa from upstream in a separate environment when working on that adapter; its current dependency stack is not compatible with the ManiSkill motion-planning NumPy 1.26 setup.
 
 ## First Run
 

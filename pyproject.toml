@@ -47,6 +47,7 @@ dev = [
   "types-PyYAML>=6.0",
 ]
 maniskill = [
+  "numpy>=1.26,<2.0",
   "gymnasium>=0.29",
   "mani-skill>=3.0",
 ]
@@ -58,8 +59,6 @@ robomimic = [
   "robomimic>=0.3.0",
 ]
 robocasa = [
-  "robosuite @ git+https://github.com/ARISE-Initiative/robosuite.git",
-  "robocasa @ git+https://github.com/robocasa/robocasa.git",
 ]
 vla = [
   "accelerate>=0.30",
@@ -92,6 +91,7 @@ all = [
   "mani-skill>=3.0",
   "matplotlib>=3.8",
   "mujoco>=3.0",
+  "numpy>=1.26,<2.0",
   "pandas>=2.1",
   "pillow>=10.0",
   "plotly>=5.20",
@@ -124,9 +124,7 @@ full = [
   "plotly>=5.20",
   "pyarrow>=14.0",
   "rich>=13.7",
-  "robocasa @ git+https://github.com/robocasa/robocasa.git",
   "robomimic>=0.3.0",
-  "robosuite @ git+https://github.com/ARISE-Initiative/robosuite.git",
   "safetensors>=0.4",
   "timm>=0.9",
   "torch>=2.2",
