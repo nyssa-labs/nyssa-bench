@@ -21,6 +21,7 @@ class LinearBCPolicy:
         features = flatten_observation(observation, self.feature_dim)
         action = features @ self.weights + self.bias
         low, high, shape = action_bounds(observation)
+        action = _resize_action(action, int(np.prod(shape)))
         return np.clip(action.reshape(shape), low, high)
 
     @classmethod
@@ -80,6 +81,15 @@ def train_linear_bc(
         action_size=action_size,
     )
     return policy.save(out)
+
+
+def _resize_action(action: np.ndarray, size: int) -> np.ndarray:
+    flat = np.asarray(action, dtype=float).reshape(-1)
+    if flat.size == size:
+        return flat
+    if flat.size > size:
+        return flat[:size]
+    return np.pad(flat, (0, size - flat.size))
 
 
 def create_bc_policy() -> LinearBCPolicy:

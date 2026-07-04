@@ -182,6 +182,33 @@ def test_cli_train_bc_writes_checkpoint(tmp_path: Path):
     assert out.exists()
 
 
+def test_linear_bc_resizes_action_to_live_action_space():
+    import numpy as np
+
+    from nyssa_bench.baselines.simple_bc import LinearBCPolicy
+
+    policy = LinearBCPolicy(
+        weights=np.zeros((4, 8), dtype=float),
+        bias=np.arange(8, dtype=float),
+        feature_dim=4,
+        action_size=8,
+    )
+    observation = {
+        "raw": [0.0],
+        "action_space": {
+            "type": "box",
+            "shape": [7],
+            "low": [-10.0] * 7,
+            "high": [10.0] * 7,
+        },
+    }
+
+    action = policy.predict_action(observation)
+
+    assert action.shape == (7,)
+    assert action.tolist() == [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+
+
 def test_cli_imports_maniskill_demos(tmp_path: Path):
     pytest.importorskip("h5py")
     import h5py
