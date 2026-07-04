@@ -36,17 +36,17 @@ source .venv/bin/activate
 python --version
 ```
 
-Then install the extras you need:
+Then install the extras for the workflow you want to run. Use MuJoCo for the
+quick smoke commands below:
 
 ```bash
-uv sync --extra dev --extra mujoco --extra video --extra reports
+uv sync --extra dev --extra mujoco --extra dataset --extra video --extra reports
 ```
 
-Optional runnable simulator integrations:
+Use ManiSkill for the focused manipulation result pack:
 
 ```bash
-uv sync --extra dev --extra maniskill --extra video --extra reports
-uv sync --extra dev --extra mujoco --extra video --extra reports
+uv sync --extra dev --extra maniskill --extra dataset --extra video --extra reports
 ```
 
 Optional policy/report/export stacks:
@@ -64,6 +64,10 @@ Experimental adapters for RoboCasa and Genesis are included in the repo. Their i
 
 ## First Run
 
+The MuJoCo commands require the MuJoCo install command above. They create two
+real run directories before report, export, compare, leaderboard, and scorecard
+commands are called.
+
 ```bash
 uv run nyssa list-suites
 
@@ -72,17 +76,27 @@ uv run nyssa run \
   --engine mujoco \
   --policy random \
   --episodes 10 \
-  --out runs/random_mujoco
+  --seed 0 \
+  --out runs/random_mujoco_seed0
 
-uv run nyssa report runs/random_mujoco
-uv run nyssa export --run runs/random_mujoco --format lerobot
-uv run nyssa export --run runs/random_mujoco --format jsonl
-uv run nyssa compare runs/random_mujoco runs/other_policy --out reports/compare.html
-uv run nyssa leaderboard runs/random_mujoco runs/other_policy --out reports/leaderboard.json
-uv run nyssa scorecard runs/random_mujoco runs/other_policy --out benchmark_results/baselines_v0.json
+uv run nyssa run \
+  --suite mujoco_control_v0 \
+  --engine mujoco \
+  --policy random \
+  --episodes 10 \
+  --seed 1 \
+  --out runs/random_mujoco_seed1
+
+uv run nyssa report runs/random_mujoco_seed0
+uv run nyssa export --run runs/random_mujoco_seed0 --format lerobot
+uv run nyssa export --run runs/random_mujoco_seed0 --format jsonl
+uv run nyssa compare runs/random_mujoco_seed0 runs/random_mujoco_seed1 --out reports/compare.html
+uv run nyssa leaderboard runs/random_mujoco_seed0 runs/random_mujoco_seed1 --out reports/leaderboard.json
+uv run nyssa scorecard runs/random_mujoco_seed0 runs/random_mujoco_seed1 --out benchmark_results/baselines_v0.json
 ```
 
-Run the focused baseline matrix after collecting scripted demos and training the repo-local BC checkpoint:
+Run the focused ManiSkill baseline matrix after installing the ManiSkill extras,
+collecting scripted demos, and training the repo-local BC checkpoint:
 
 ```bash
 uv run nyssa experiment \
@@ -117,7 +131,7 @@ uv run nyssa experiment \
 The run folder contains:
 
 ```txt
-runs/random_mujoco/
+runs/random_mujoco_seed0/
 |-- config.yaml
 |-- run.yaml
 |-- environment.json
