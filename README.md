@@ -83,7 +83,8 @@ uv run nyssa run \
   --policy random \
   --episodes 10 \
   --seed 0 \
-  --out runs/random_mujoco_seed0
+  --out runs/random_mujoco_seed0 \
+  --no-replay
 
 uv run nyssa run \
   --suite mujoco_control_v0 \
@@ -91,7 +92,8 @@ uv run nyssa run \
   --policy random \
   --episodes 10 \
   --seed 1 \
-  --out runs/random_mujoco_seed1
+  --out runs/random_mujoco_seed1 \
+  --no-replay
 
 uv run nyssa report runs/random_mujoco_seed0
 uv run nyssa export --run runs/random_mujoco_seed0 --format lerobot
