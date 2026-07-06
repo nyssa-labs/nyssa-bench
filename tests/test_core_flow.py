@@ -313,6 +313,37 @@ def test_mujoco_expert_samples_random_action_sequences():
     assert engine.env.unwrapped.data.qpos.tolist() == [0.0, 0.0]
 
 
+def test_mujoco_pusher_expert_uses_task_shaped_rollout_score():
+    from nyssa_bench.experts.base import MuJoCoHeuristicExpertProvider
+
+    task = Suite.load("mujoco_control_v0").filter_tasks(["mujoco_pusher"]).tasks[0]
+    expert = MuJoCoHeuristicExpertProvider(
+        rollout_margin=0.25,
+        rollout_horizon=2,
+        candidate_count=0,
+        pusher_shaping_scale=7.0,
+    )
+    engine = _FakeMuJoCoEngine()
+    observation = {
+        "raw": [1.0, -1.0],
+        "action_space": {
+            "type": "box",
+            "shape": [2],
+            "low": [-1.0, -1.0],
+            "high": [1.0, 1.0],
+        },
+    }
+
+    score = expert.score_action(observation, [1.0, 1.0], task=task, engine=engine)
+
+    assert score.accepted is False
+    assert score.details is not None
+    assert score.details["rollout_score_kind"] == "task_shaped_return"
+    assert score.details["pusher_shaping_scale"] == 7.0
+    assert expert.metadata()["pusher_shaping_scale"] == 7.0
+    assert engine.env.unwrapped.data.qpos.tolist() == [0.0, 0.0]
+
+
 def test_runner_executes_action_chunks(tmp_path: Path):
     class TwoStepEngine(UnitEngine):
         max_steps = 2
@@ -376,6 +407,15 @@ class _FakeMuJoCoUnwrapped:
     def set_state(self, qpos, qvel) -> None:
         self.data.qpos[:] = qpos
         self.data.qvel[:] = qvel
+
+    def get_body_com(self, name: str):
+        if name in {"object", "obj", "puck", "object0"}:
+            return np.asarray([self.data.qpos[0], self.data.qpos[1], 0.0], dtype=float)
+        if name in {"goal", "target"}:
+            return np.asarray([-1.0, 1.0, 0.0], dtype=float)
+        if name in {"tips_arm", "fingertip", "tip", "end_effector"}:
+            return np.asarray([self.data.qpos[0] + 0.1, self.data.qpos[1] - 0.1, 0.0], dtype=float)
+        raise KeyError(name)
 
 
 class _FakeMuJoCoEnv:
