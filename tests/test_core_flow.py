@@ -343,6 +343,8 @@ def test_mujoco_pusher_expert_uses_task_shaped_rollout_score():
     assert score.details["adaptive_margin_enabled"] is True
     assert score.details["effective_rollout_margin"] <= score.details["rollout_margin"]
     assert score.details["candidate_return_spread"] is not None
+    assert score.details["candidate_top_return_spread"] is not None
+    assert score.details["margin_top_count"] is not None
     assert expert.metadata()["pusher_shaping_scale"] == 7.0
     assert expert.metadata()["adaptive_margin"] == "auto"
     assert engine.env.unwrapped.data.qpos.tolist() == [0.0, 0.0]
@@ -356,18 +358,24 @@ def test_mujoco_pusher_adaptive_margin_tracks_candidate_spread():
     expert = MuJoCoHeuristicExpertProvider(
         rollout_margin=0.25,
         margin_fraction=0.25,
+        margin_top_fraction=0.25,
         min_margin=1e-6,
         adaptive_margin="auto",
     )
 
-    margin, adaptive, spread = expert._effective_rollout_margin(pusher, [-7.539147, -7.539038])
-    fixed_margin, fixed_adaptive, fixed_spread = expert._effective_rollout_margin(reacher, [-7.539147, -7.539038])
+    margin, details = expert._effective_rollout_margin(
+        pusher,
+        [-7.539147, -7.539038, -10.0, -15.0, -21.0, -7.539070, -7.539080, -30.0],
+    )
+    fixed_margin, fixed_details = expert._effective_rollout_margin(reacher, [-7.539147, -7.539038])
 
-    assert adaptive is True
-    assert spread == pytest.approx(0.000109)
-    assert margin == pytest.approx(0.00002725)
-    assert fixed_adaptive is False
-    assert fixed_spread is None
+    assert details["adaptive_margin_enabled"] is True
+    assert details["candidate_return_spread"] > 20.0
+    assert details["candidate_top_return_spread"] == pytest.approx(0.000032)
+    assert details["margin_top_count"] == 2
+    assert margin == pytest.approx(0.000008)
+    assert fixed_details["adaptive_margin_enabled"] is False
+    assert fixed_details["candidate_return_spread"] is None
     assert fixed_margin == 0.25
 
 

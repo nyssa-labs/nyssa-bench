@@ -215,6 +215,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         pusher_shaping_scale: float | None = None,
         adaptive_margin: str | None = None,
         margin_fraction: float | None = None,
+        margin_top_fraction: float | None = None,
         min_margin: float | None = None,
     ) -> None:
         self.gain = gain
@@ -243,6 +244,17 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             raise ValueError("NYSSA_MUJOCO_ADAPTIVE_MARGIN must be one of: auto, on, off")
         self.margin_fraction = float(
             margin_fraction if margin_fraction is not None else os.getenv("NYSSA_MUJOCO_MARGIN_FRACTION", "0.25")
+        )
+        self.margin_top_fraction = min(
+            1.0,
+            max(
+                0.01,
+                float(
+                    margin_top_fraction
+                    if margin_top_fraction is not None
+                    else os.getenv("NYSSA_MUJOCO_MARGIN_TOP_FRACTION", "0.10")
+                ),
+            ),
         )
         self.min_margin = float(min_margin if min_margin is not None else os.getenv("NYSSA_MUJOCO_MIN_MARGIN", "1e-6"))
         self._rng: Any | None = None
@@ -326,6 +338,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             "pusher_shaping_scale": self.pusher_shaping_scale,
             "adaptive_margin": self.adaptive_margin,
             "margin_fraction": self.margin_fraction,
+            "margin_top_fraction": self.margin_top_fraction,
             "min_margin": self.min_margin,
         }
 
@@ -364,15 +377,14 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
                     best_return = candidate_return
                     best_index = candidate_index
         gap = best_return - proposed_return
-        effective_margin, adaptive_enabled, return_spread = self._effective_rollout_margin(task, candidate_returns)
+        effective_margin, margin_details = self._effective_rollout_margin(task, candidate_returns)
         details = {
             "proposed_return": proposed_return,
             "best_candidate_return": best_return,
             "score_gap": gap,
             "rollout_margin": self.rollout_margin,
             "effective_rollout_margin": effective_margin,
-            "adaptive_margin_enabled": adaptive_enabled,
-            "candidate_return_spread": return_spread,
+            **margin_details,
             "rollout_horizon": self.rollout_horizon,
             "candidate_count": len(candidates),
             "best_candidate_index": best_index,
@@ -389,17 +401,33 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             )
         return ExpertActionScore(accepted=True, confidence=0.75, reason=None, details=details)
 
-    def _effective_rollout_margin(self, task: Any, returns: list[float]) -> tuple[float, bool, float | None]:
+    def _effective_rollout_margin(self, task: Any, returns: list[float]) -> tuple[float, dict[str, Any]]:
         adaptive_enabled = self.adaptive_margin == "on" or (
             self.adaptive_margin == "auto" and _is_mujoco_pusher_task(task)
         )
         if not adaptive_enabled or not returns:
-            return self.rollout_margin, False, None
-        return_spread = max(returns) - min(returns)
-        if return_spread <= 0.0:
-            return self.min_margin, True, return_spread
-        adaptive_margin = max(self.min_margin, return_spread * self.margin_fraction)
-        return min(self.rollout_margin, adaptive_margin), True, return_spread
+            return self.rollout_margin, {
+                "adaptive_margin_enabled": False,
+                "candidate_return_spread": None,
+                "candidate_top_return_spread": None,
+                "margin_top_count": None,
+            }
+        sorted_returns = sorted(returns, reverse=True)
+        return_spread = sorted_returns[0] - sorted_returns[-1]
+        top_count = max(2, min(len(sorted_returns), int(len(sorted_returns) * self.margin_top_fraction)))
+        top_returns = sorted_returns[:top_count]
+        top_spread = top_returns[0] - top_returns[-1] if top_returns else 0.0
+        reference_spread = top_spread if top_spread > 0.0 else return_spread
+        if reference_spread <= 0.0:
+            adaptive_margin = self.min_margin
+        else:
+            adaptive_margin = max(self.min_margin, reference_spread * self.margin_fraction)
+        return min(self.rollout_margin, adaptive_margin), {
+            "adaptive_margin_enabled": True,
+            "candidate_return_spread": return_spread,
+            "candidate_top_return_spread": top_spread,
+            "margin_top_count": top_count,
+        }
 
     def _best_rollout_candidate(self, observation: dict[str, Any], *, task: Any, engine: Any) -> Any | None:
         best_action = None
