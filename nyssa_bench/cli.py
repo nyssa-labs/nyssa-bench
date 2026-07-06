@@ -127,6 +127,7 @@ def main(argv: list[str] | None = None) -> int:
     train_recovery_bc_parser.add_argument("sources", nargs="+")
     train_recovery_bc_parser.add_argument("--out", default="checkpoints/recovery_bc_policy.json")
     train_recovery_bc_parser.add_argument("--by-task", action="store_true")
+    train_recovery_bc_parser.add_argument("--routing", choices=["auto", "global", "task"], default="auto")
     train_recovery_bc_parser.add_argument("--out-dir", default="checkpoints/bc_by_task")
     train_recovery_bc_parser.add_argument("--merged-out")
     train_recovery_bc_parser.add_argument("--feature-dim", type=int, default=256)
@@ -283,6 +284,7 @@ def main(argv: list[str] | None = None) -> int:
             args.sources,
             out=args.out,
             by_task=args.by_task,
+            routing=args.routing,
             out_dir=args.out_dir,
             merged_out=args.merged_out,
             feature_dim=args.feature_dim,
@@ -292,6 +294,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"recovery_sources: {len(result.source_paths)}")
         print(f"recovery_episodes: {result.episodes}")
         print(f"recovery_steps: {result.steps}")
+        print(f"recovery_routing: {result.routing}")
+        for task_id, action_size in sorted(result.action_sizes.items()):
+            print(f"recovery_action_size[{task_id}]: {action_size}")
         if result.merged_path:
             print(f"merged_recovery_episodes: {result.merged_path}")
         for label, path in result.checkpoints.items():

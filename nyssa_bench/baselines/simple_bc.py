@@ -47,8 +47,9 @@ class LinearBCPolicy:
 
 
 class TaskRoutedLinearBCPolicy:
-    def __init__(self, checkpoint_dir: str | Path) -> None:
+    def __init__(self, checkpoint_dir: str | Path, *, missing_task: str = "error") -> None:
         self.checkpoint_dir = Path(checkpoint_dir)
+        self.missing_task = missing_task
         self.current_task_id: str | None = None
         self._models: dict[str, LinearBCPolicy] = {}
 
@@ -58,16 +59,21 @@ class TaskRoutedLinearBCPolicy:
     def predict_action(self, observation: dict[str, Any]) -> Any:
         if not self.current_task_id:
             raise RuntimeError("Task-routed BC policy was used before reset(task=...)")
-        return self._model_for_task(self.current_task_id).predict_action(observation)
+        try:
+            return self._model_for_task(self.current_task_id).predict_action(observation)
+        except KeyError:
+            return _zero_action(observation)
 
     def _model_for_task(self, task_id: str) -> LinearBCPolicy:
         key = _checkpoint_key(task_id)
         if key not in self._models:
             path = self.checkpoint_dir / f"{key}.json"
             if not path.exists():
+                if self.missing_task == "zero":
+                    raise KeyError(key)
                 raise RuntimeError(
                     f"Task BC checkpoint not found for task '{task_id}': {path}. "
-                    "Train one checkpoint per task under NYSSA_TASK_BC_DIR."
+                    "Train one checkpoint per task under NYSSA_TASK_BC_DIR or set NYSSA_TASK_BC_MISSING=zero."
                 )
             self._models[key] = LinearBCPolicy.load(path)
         return self._models[key]
@@ -120,7 +126,10 @@ def create_bc_policy() -> LinearBCPolicy:
 
 def create_task_bc_policy() -> TaskRoutedLinearBCPolicy:
     checkpoint_dir = os.getenv("NYSSA_TASK_BC_DIR", "checkpoints/bc_by_task")
-    return TaskRoutedLinearBCPolicy(checkpoint_dir)
+    missing_task = os.getenv("NYSSA_TASK_BC_MISSING", "error").strip().lower()
+    if missing_task not in {"error", "zero"}:
+        raise RuntimeError("NYSSA_TASK_BC_MISSING must be either 'error' or 'zero'")
+    return TaskRoutedLinearBCPolicy(checkpoint_dir, missing_task=missing_task)
 
 
 def task_checkpoint_key(task_id: str) -> str:
@@ -130,6 +139,11 @@ def task_checkpoint_key(task_id: str) -> str:
         "maniskill_push_cube_joint": "maniskill_push_cube",
     }
     return aliases.get(task_id, task_id.removesuffix("_joint"))
+
+
+def _zero_action(observation: dict[str, Any]) -> np.ndarray:
+    low, high, shape = action_bounds(observation)
+    return np.clip(np.zeros(shape, dtype=float), low, high)
 
 
 def _checkpoint_key(task_id: str) -> str:

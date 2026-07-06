@@ -35,6 +35,13 @@ def _observation() -> dict[str, Any]:
     return {"raw": [0.0], "action_space": {"type": "box", "shape": [1], "low": [-1.0], "high": [1.0]}}
 
 
+def _observation_with_action_size(size: int) -> dict[str, Any]:
+    return {
+        "raw": [0.0],
+        "action_space": {"type": "box", "shape": [size], "low": [-1.0] * size, "high": [1.0] * size},
+    }
+
+
 def _register_cli_engine() -> None:
     get_plugin_registry().engines["cli_real"] = CliUnitEngine
 
@@ -283,6 +290,58 @@ def test_cli_train_recovery_bc_by_task(tmp_path: Path):
     assert (out_dir / "maniskill_pick_cube.json").exists()
 
 
+def test_cli_train_recovery_bc_auto_routes_mixed_action_spaces_by_task(tmp_path: Path):
+    root = tmp_path / "run"
+    recovery_dir = root / "recovery_dataset"
+    recovery_dir.mkdir(parents=True)
+    recovery_dir.joinpath("episodes.json").write_text(
+        json.dumps(
+            [
+                {
+                    "task_id": "mujoco_reacher",
+                    "steps": [{"observation": _observation_with_action_size(2), "action": [0.1, 0.2]}],
+                },
+                {
+                    "task_id": "mujoco_inverted_pendulum",
+                    "steps": [{"observation": _observation_with_action_size(1), "action": [0.3]}],
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+    global_out = tmp_path / "global.json"
+    out_dir = tmp_path / "bc_by_task"
+
+    assert main(["train-recovery-bc", str(root), "--out", str(global_out), "--out-dir", str(out_dir)]) == 0
+    assert not global_out.exists()
+    assert (out_dir / "mujoco_reacher.json").exists()
+    assert (out_dir / "mujoco_inverted_pendulum.json").exists()
+
+
+def test_cli_train_recovery_bc_global_rejects_mixed_action_spaces(tmp_path: Path):
+    root = tmp_path / "run"
+    recovery_dir = root / "recovery_dataset"
+    recovery_dir.mkdir(parents=True)
+    recovery_dir.joinpath("episodes.json").write_text(
+        json.dumps(
+            [
+                {
+                    "task_id": "mujoco_reacher",
+                    "steps": [{"observation": _observation_with_action_size(2), "action": [0.1, 0.2]}],
+                },
+                {
+                    "task_id": "mujoco_inverted_pendulum",
+                    "steps": [{"observation": _observation_with_action_size(1), "action": [0.3]}],
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="mixed action sizes"):
+        main(["train-recovery-bc", str(root), "--routing", "global", "--out", str(tmp_path / "global.json")])
+
+
 def test_linear_bc_resizes_action_to_live_action_space():
     import numpy as np
 
@@ -376,6 +435,27 @@ def test_task_routed_linear_bc_uses_task_checkpoint(tmp_path: Path):
     action = policy.predict_action(observation)
 
     assert action.tolist() == [0.25, -0.25]
+
+
+def test_task_routed_linear_bc_can_zero_fill_missing_task(tmp_path: Path):
+    from nyssa_bench.baselines.simple_bc import TaskRoutedLinearBCPolicy
+
+    policy = TaskRoutedLinearBCPolicy(tmp_path / "missing_checkpoints", missing_task="zero")
+    task = type("Task", (), {"task_id": "mujoco_inverted_pendulum"})()
+    policy.reset(task=task)
+    observation = {
+        "raw": [0.0],
+        "action_space": {
+            "type": "box",
+            "shape": [2],
+            "low": [0.2, -1.0],
+            "high": [1.0, 1.0],
+        },
+    }
+
+    action = policy.predict_action(observation)
+
+    assert action.tolist() == [0.2, 0.0]
 
 
 def test_cli_imports_maniskill_demos(tmp_path: Path):

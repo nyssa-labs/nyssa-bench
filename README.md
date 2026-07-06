@@ -228,20 +228,23 @@ Each recovery-aware run writes:
 - `failure_gallery.html`: representative failed episodes and replay links.
 - `metrics.json`: success, intervention, recovery, verifier, action-chunk, and compute metrics.
 
-Train the next BC checkpoint directly from one run directory or an entire
-ablation result root:
+Train the next task-routed BC checkpoints directly from one run directory or an
+entire ablation result root. This is the safe default for multi-task suites such
+as MuJoCo control, where tasks can have different action dimensions:
 
 ```bash
 uv run nyssa train-recovery-bc \
   benchmark_results/mujoco_ablation_smoke \
-  --out checkpoints/recovery_bc_policy.json \
+  --routing task \
+  --out-dir checkpoints/recovery_bc_by_task \
   --merged-out benchmark_results/mujoco_recovery_training/episodes.json
 
-NYSSA_BC_CHECKPOINT=checkpoints/recovery_bc_policy.json \
+NYSSA_TASK_BC_DIR=checkpoints/recovery_bc_by_task \
+NYSSA_TASK_BC_MISSING=zero \
 uv run nyssa ablate \
   --suite mujoco_control_v0 \
   --engine mujoco \
-  --policy bc_policy \
+  --policy task_bc_policy \
   --seeds 0 \
   --episodes 5 \
   --variants base verifier recovery verifier_recovery \
@@ -266,14 +269,16 @@ uv run nyssa ablate \
 
 uv run nyssa train-recovery-bc \
   benchmark_results/mujoco_recovery_collect_v0 \
-  --out checkpoints/recovery_bc_policy.json \
+  --routing task \
+  --out-dir checkpoints/recovery_bc_by_task \
   --merged-out benchmark_results/mujoco_recovery_training_v0/episodes.json
 
-NYSSA_BC_CHECKPOINT=checkpoints/recovery_bc_policy.json \
+NYSSA_TASK_BC_DIR=checkpoints/recovery_bc_by_task \
+NYSSA_TASK_BC_MISSING=zero \
 uv run nyssa ablate \
   --suite mujoco_control_v0 \
   --engine mujoco \
-  --policy bc_policy \
+  --policy task_bc_policy \
   --seeds 0 \
   --episodes 20 \
   --variants base verifier recovery verifier_recovery \
@@ -297,6 +302,7 @@ uv run nyssa train-recovery-bc \
   --out-dir checkpoints/bc_by_task
 
 NYSSA_TASK_BC_DIR=checkpoints/bc_by_task \
+NYSSA_TASK_BC_MISSING=zero \
 uv run nyssa run \
   --suite mujoco_control_v0 \
   --engine mujoco \

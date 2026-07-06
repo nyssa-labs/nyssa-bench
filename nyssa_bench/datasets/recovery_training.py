@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from nyssa_bench.baselines.features import action_bounds
 from nyssa_bench.baselines.simple_bc import task_checkpoint_key, train_linear_bc
 
 
@@ -17,6 +18,8 @@ class RecoveryBCTrainingResult:
     checkpoints: dict[str, Path]
     episodes: int
     steps: int
+    routing: str
+    action_sizes: dict[str, int]
 
 
 def collect_recovery_episode_paths(sources: list[str | Path]) -> list[Path]:
@@ -74,6 +77,7 @@ def train_recovery_bc(
     *,
     out: str | Path = "checkpoints/recovery_bc_policy.json",
     by_task: bool = False,
+    routing: str = "auto",
     out_dir: str | Path = "checkpoints/bc_by_task",
     merged_out: str | Path | None = None,
     feature_dim: int = 256,
@@ -83,10 +87,12 @@ def train_recovery_bc(
     source_paths = collect_recovery_episode_paths(sources)
     episodes = load_recovery_episodes(source_paths, min_steps=min_steps)
     merged_path = _write_json(episodes, merged_out) if merged_out else None
+    routing = _resolve_routing(episodes, by_task=by_task, routing=routing)
+    action_sizes = _action_sizes_by_task(episodes)
     checkpoints = (
         _train_by_task(episodes, out_dir=out_dir, feature_dim=feature_dim, ridge=ridge)
-        if by_task
-        else {"global": _train_episodes(episodes, out=out, feature_dim=feature_dim, ridge=ridge)}
+        if routing == "task"
+        else {"global": _train_global(episodes, out=out, feature_dim=feature_dim, ridge=ridge)}
     )
     return RecoveryBCTrainingResult(
         source_paths=source_paths,
@@ -94,7 +100,68 @@ def train_recovery_bc(
         checkpoints=checkpoints,
         episodes=len(episodes),
         steps=sum(len(item.get("steps", [])) for item in episodes),
+        routing=routing,
+        action_sizes=action_sizes,
     )
+
+
+def _resolve_routing(episodes: list[dict[str, Any]], *, by_task: bool, routing: str) -> str:
+    if by_task:
+        routing = "task"
+    if routing not in {"auto", "global", "task"}:
+        raise ValueError(f"Unsupported recovery BC routing mode: {routing}")
+    if routing == "auto":
+        return "global" if len(set(_action_sizes_by_task(episodes).values())) <= 1 else "task"
+    return routing
+
+
+def _action_sizes_by_task(episodes: list[dict[str, Any]]) -> dict[str, int]:
+    sizes: dict[str, int] = {}
+    for episode in episodes:
+        task_id = str(episode.get("task_id") or "unknown_task")
+        for step in episode.get("steps", []):
+            size = _action_size_from_step(step)
+            if size is None:
+                continue
+            previous = sizes.get(task_id)
+            if previous is not None and previous != size:
+                raise ValueError(
+                    f"Recovery data for task '{task_id}' mixes action sizes {previous} and {size}. "
+                    "Train separate checkpoints for each task/action-space contract."
+                )
+            sizes[task_id] = size
+    return sizes
+
+
+def _action_size_from_step(step: dict[str, Any]) -> int | None:
+    observation = step.get("observation")
+    if not isinstance(observation, dict):
+        return None
+    try:
+        _, _, shape = action_bounds(observation)
+    except Exception:
+        return None
+    size = 1
+    for value in shape:
+        size *= int(value)
+    return size
+
+
+def _train_global(
+    episodes: list[dict[str, Any]],
+    *,
+    out: str | Path,
+    feature_dim: int,
+    ridge: float,
+) -> Path:
+    action_sizes = set(_action_sizes_by_task(episodes).values())
+    if len(action_sizes) > 1:
+        formatted = ", ".join(str(size) for size in sorted(action_sizes))
+        raise ValueError(
+            f"Global recovery BC cannot train on mixed action sizes: {formatted}. "
+            "Use --routing task or --by-task and evaluate with task_bc_policy."
+        )
+    return _train_episodes(episodes, out=out, feature_dim=feature_dim, ridge=ridge)
 
 
 def _train_by_task(
