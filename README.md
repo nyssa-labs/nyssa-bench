@@ -144,6 +144,105 @@ uv run nyssa leaderboard runs/random_mujoco_seed0 runs/random_mujoco_seed1 --out
 uv run nyssa scorecard runs/random_mujoco_seed0 runs/random_mujoco_seed1 --out benchmark_results/baselines_v0.json
 ```
 
+## Recovery And Ablation Runs
+
+Use `ablate` to run base, verifier, recovery, and verifier+recovery variants
+with one command. Start small before running public-scale episodes.
+
+MuJoCo smoke ablation:
+
+```bash
+uv run nyssa ablate \
+  --suite mujoco_control_v0 \
+  --engine mujoco \
+  --policy random \
+  --seeds 0 \
+  --episodes 5 \
+  --variants base verifier recovery verifier_recovery \
+  --expert-provider mujoco-heuristic \
+  --out benchmark_results/mujoco_ablation_smoke \
+  --no-replay
+```
+
+ManiSkill smoke ablation:
+
+```bash
+uv run nyssa ablate \
+  --suite maniskill_smoke_v0 \
+  --engine maniskill \
+  --policy random \
+  --seeds 0 \
+  --episodes 5 \
+  --variants base verifier recovery verifier_recovery \
+  --expert-provider maniskill-scripted \
+  --out benchmark_results/maniskill_ablation_smoke \
+  --capture-replay
+```
+
+Useful built-in expert providers:
+
+- `none`: no expert, verifier, or recovery assistance.
+- `bounds-verifier`: rejects actions outside the live action space.
+- `maniskill-scripted`: built-in ManiSkill scripted manipulation heuristic.
+- `scripted-oracle`: alias for the built-in ManiSkill scripted expert.
+- `mujoco-heuristic`: low-dimensional MuJoCo heuristic recovery provider.
+- `mujoco-random-shooting`: current alias for the MuJoCo heuristic scaffold.
+- `policy:<name>`: use any registered Nyssa policy as the expert action source.
+
+The same hooks are available on `run` and `experiment`:
+
+```bash
+uv run nyssa run \
+  --suite mujoco_control_v0 \
+  --engine mujoco \
+  --policy random \
+  --episodes 10 \
+  --seed 0 \
+  --expert-provider mujoco-heuristic \
+  --enable-verifier \
+  --enable-recovery \
+  --out runs/mujoco_recovery_smoke \
+  --no-replay
+```
+
+Action-sequence policies can report and execute action chunks:
+
+```bash
+uv run nyssa run \
+  --suite mujoco_control_v0 \
+  --engine mujoco \
+  --policy path/to/action_chunk_policy.py \
+  --episodes 10 \
+  --seed 0 \
+  --policy-action-horizon 8 \
+  --policy-execution-horizon 4 \
+  --out runs/mujoco_action_chunk_smoke \
+  --no-replay
+```
+
+Each recovery-aware run writes:
+
+- `dataset_manifest.json`: provenance, task contracts, artifact hashes.
+- `recovery_dataset/manifest.json`: intervention/recovery dataset summary.
+- `recovery_dataset/episodes.jsonl`: expert intervention and recovery steps.
+- `failure_gallery.html`: representative failed episodes and replay links.
+- `metrics.json`: success, intervention, recovery, verifier, action-chunk, and compute metrics.
+
+After smoke runs pass, scale to public-claim settings:
+
+```bash
+uv run nyssa ablate \
+  --suite mujoco_control_v0 \
+  --engine mujoco \
+  --policy random \
+  --seeds 0 1 2 \
+  --episodes 100 \
+  --variants base verifier recovery verifier_recovery \
+  --expert-provider mujoco-heuristic \
+  --out benchmark_results/mujoco_ablation_v0 \
+  --capture-replay
+```
+
 Run the focused ManiSkill baseline matrix after installing the ManiSkill extras,
 collecting scripted demos, and training the repo-local BC checkpoint:
 
@@ -190,8 +289,11 @@ runs/random_mujoco_seed0/
 |-- metrics.csv
 |-- episodes.json
 |-- episodes.jsonl
+|-- dataset_manifest.json
+|-- recovery_dataset/
 |-- replay_manifest.json
 |-- replay.html
+|-- failure_gallery.html
 |-- videos/
 |-- failures/
 |-- plots/
@@ -252,8 +354,11 @@ uv run python scripts/release_smoke.py
 - Task YAML DSL for tabletop, warehouse, articulated-object, and stress-test suites.
 - Policy adapters: random, repo-local scripted heuristic, repo-local linear BC, robomimic checkpoint loading, LeRobot checkpoint loading, plus hook-only OpenVLA and diffusion adapters. External policy adapters accept `NYSSA_SCRIPTED_ORACLE_POLICY`, `NYSSA_BC_POLICY`, `NYSSA_LEROBOT_POLICY`, `NYSSA_OPENVLA_POLICY`, `NYSSA_ROBOMIMIC_POLICY`, or `NYSSA_DIFFUSION_POLICY` as `module:factory` entry points.
 - Baseline experiment command for policy/seed matrices and result-pack generation.
+- Recovery/ablation command for base, verifier, recovery, and verifier+recovery variants.
+- Expert-provider interface with built-in `bounds-verifier`, `maniskill-scripted`, `mujoco-heuristic`, and `policy:<name>` providers.
+- Action-sequence metadata and execution hooks for chunked policies.
 - Failure taxonomy, mapper-based failure labels, and aggregate metrics.
-- HTML reports, JSON metrics, public-claim validation, and unsupported-stressor reporting.
+- HTML reports, JSON metrics, recovery datasets, failure galleries, public-claim validation, and unsupported-stressor reporting.
 - Policy comparison reports, prototype reliability scores, and leaderboard export.
 - Static leaderboard shell, protocol draft, scorecard structure, Docker files, and plugin API.
 - CLI, docs, examples, and tests.
