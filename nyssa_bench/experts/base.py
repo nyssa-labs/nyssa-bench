@@ -215,6 +215,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         pusher_shaping_scale: float | None = None,
         adaptive_margin: str | None = None,
         margin_fraction: float | None = None,
+        margin_top_k: int | None = None,
         margin_top_fraction: float | None = None,
         min_margin: float | None = None,
     ) -> None:
@@ -244,6 +245,10 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             raise ValueError("NYSSA_MUJOCO_ADAPTIVE_MARGIN must be one of: auto, on, off")
         self.margin_fraction = float(
             margin_fraction if margin_fraction is not None else os.getenv("NYSSA_MUJOCO_MARGIN_FRACTION", "0.25")
+        )
+        self.margin_top_k = max(
+            0,
+            int(margin_top_k if margin_top_k is not None else os.getenv("NYSSA_MUJOCO_MARGIN_TOP_K", "2")),
         )
         self.margin_top_fraction = min(
             1.0,
@@ -338,6 +343,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             "pusher_shaping_scale": self.pusher_shaping_scale,
             "adaptive_margin": self.adaptive_margin,
             "margin_fraction": self.margin_fraction,
+            "margin_top_k": self.margin_top_k,
             "margin_top_fraction": self.margin_top_fraction,
             "min_margin": self.min_margin,
         }
@@ -411,10 +417,14 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
                 "candidate_return_spread": None,
                 "candidate_top_return_spread": None,
                 "margin_top_count": None,
+                "margin_top_k": self.margin_top_k,
             }
         sorted_returns = sorted(returns, reverse=True)
         return_spread = sorted_returns[0] - sorted_returns[-1]
-        top_count = max(2, min(len(sorted_returns), int(len(sorted_returns) * self.margin_top_fraction)))
+        if self.margin_top_k > 0:
+            top_count = min(len(sorted_returns), max(2, self.margin_top_k))
+        else:
+            top_count = max(2, min(len(sorted_returns), int(len(sorted_returns) * self.margin_top_fraction)))
         top_returns = sorted_returns[:top_count]
         top_spread = top_returns[0] - top_returns[-1] if top_returns else 0.0
         reference_spread = top_spread if top_spread > 0.0 else return_spread
@@ -427,6 +437,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             "candidate_return_spread": return_spread,
             "candidate_top_return_spread": top_spread,
             "margin_top_count": top_count,
+            "margin_top_k": self.margin_top_k,
         }
 
     def _best_rollout_candidate(self, observation: dict[str, Any], *, task: Any, engine: Any) -> Any | None:

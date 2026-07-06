@@ -198,6 +198,7 @@ NYSSA_MUJOCO_CANDIDATES=32 \
 NYSSA_MUJOCO_PUSHER_SHAPING=5.0 \
 NYSSA_MUJOCO_ADAPTIVE_MARGIN=auto \
 NYSSA_MUJOCO_MARGIN_FRACTION=0.25 \
+NYSSA_MUJOCO_MARGIN_TOP_K=2 \
 NYSSA_MUJOCO_MARGIN_TOP_FRACTION=0.10 \
 uv run nyssa ablate ...
 ```
@@ -212,7 +213,9 @@ body positions are available.
 `NYSSA_MUJOCO_ADAPTIVE_MARGIN=auto` switches Pusher to a margin derived from
 the near-best candidate return spread, which avoids fixed margins that are too
 large for small Pusher score gaps. `NYSSA_MUJOCO_MARGIN_TOP_FRACTION` controls
-how much of the top candidate cluster defines that local spread.
+how much of the top candidate cluster defines that local spread, unless
+`NYSSA_MUJOCO_MARGIN_TOP_K` is set. The default top-k setting is `2`, which uses
+only the best two rollout returns for local margin scale.
 
 The same hooks are available on `run` and `experiment`:
 
@@ -240,6 +243,7 @@ NYSSA_MUJOCO_CANDIDATES=64 \
 NYSSA_MUJOCO_PUSHER_SHAPING=10.0 \
 NYSSA_MUJOCO_ADAPTIVE_MARGIN=auto \
 NYSSA_MUJOCO_MARGIN_FRACTION=0.25 \
+NYSSA_MUJOCO_MARGIN_TOP_K=2 \
 NYSSA_MUJOCO_MARGIN_TOP_FRACTION=0.10 \
 uv run nyssa ablate \
   --suite mujoco_control_v0 \

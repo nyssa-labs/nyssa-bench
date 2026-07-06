@@ -345,8 +345,10 @@ def test_mujoco_pusher_expert_uses_task_shaped_rollout_score():
     assert score.details["candidate_return_spread"] is not None
     assert score.details["candidate_top_return_spread"] is not None
     assert score.details["margin_top_count"] is not None
+    assert score.details["margin_top_k"] == 2
     assert expert.metadata()["pusher_shaping_scale"] == 7.0
     assert expert.metadata()["adaptive_margin"] == "auto"
+    assert expert.metadata()["margin_top_k"] == 2
     assert engine.env.unwrapped.data.qpos.tolist() == [0.0, 0.0]
 
 
@@ -358,7 +360,6 @@ def test_mujoco_pusher_adaptive_margin_tracks_candidate_spread():
     expert = MuJoCoHeuristicExpertProvider(
         rollout_margin=0.25,
         margin_fraction=0.25,
-        margin_top_fraction=0.25,
         min_margin=1e-6,
         adaptive_margin="auto",
     )
@@ -373,10 +374,34 @@ def test_mujoco_pusher_adaptive_margin_tracks_candidate_spread():
     assert details["candidate_return_spread"] > 20.0
     assert details["candidate_top_return_spread"] == pytest.approx(0.000032)
     assert details["margin_top_count"] == 2
+    assert details["margin_top_k"] == 2
     assert margin == pytest.approx(0.000008)
     assert fixed_details["adaptive_margin_enabled"] is False
     assert fixed_details["candidate_return_spread"] is None
     assert fixed_margin == 0.25
+
+
+def test_mujoco_pusher_adaptive_margin_can_use_top_fraction_when_top_k_disabled():
+    from nyssa_bench.experts.base import MuJoCoHeuristicExpertProvider
+
+    pusher = Suite.load("mujoco_control_v0").filter_tasks(["mujoco_pusher"]).tasks[0]
+    expert = MuJoCoHeuristicExpertProvider(
+        rollout_margin=0.25,
+        margin_fraction=0.25,
+        margin_top_k=0,
+        margin_top_fraction=0.25,
+        min_margin=1e-6,
+        adaptive_margin="auto",
+    )
+
+    margin, details = expert._effective_rollout_margin(
+        pusher,
+        [-7.539147, -7.539038, -10.0, -15.0, -21.0, -7.539070, -7.539080, -30.0],
+    )
+
+    assert details["margin_top_k"] == 0
+    assert details["margin_top_count"] == 2
+    assert margin == pytest.approx(0.000008)
 
 
 def test_runner_executes_action_chunks(tmp_path: Path):
