@@ -185,9 +185,20 @@ Useful built-in expert providers:
 - `bounds-verifier`: rejects actions outside the live action space.
 - `maniskill-scripted`: built-in ManiSkill scripted manipulation heuristic.
 - `scripted-oracle`: alias for the built-in ManiSkill scripted expert.
-- `mujoco-heuristic`: low-dimensional MuJoCo heuristic recovery provider.
+- `mujoco-heuristic`: calibrated short-horizon MuJoCo rollout verifier and recovery provider.
 - `mujoco-random-shooting`: current alias for the MuJoCo heuristic scaffold.
 - `policy:<name>`: use any registered Nyssa policy as the expert action source.
+
+MuJoCo verifier calibration can be tuned without code changes:
+
+```bash
+NYSSA_MUJOCO_ROLLOUT_HORIZON=3 \
+NYSSA_MUJOCO_ROLLOUT_MARGIN=0.25 \
+uv run nyssa ablate ...
+```
+
+Higher `NYSSA_MUJOCO_ROLLOUT_MARGIN` rejects fewer learned-policy actions.
+Lower values make the verifier more intervention-heavy.
 
 The same hooks are available on `run` and `experiment`:
 

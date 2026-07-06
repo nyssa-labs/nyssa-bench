@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -12,12 +13,14 @@ class ExpertActionScore:
     accepted: bool = True
     confidence: float | None = None
     reason: str | None = None
+    details: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "accepted": self.accepted,
             "confidence": self.confidence,
             "reason": self.reason,
+            "details": self.details,
         }
 
 
@@ -197,7 +200,7 @@ class ManiSkillScriptedExpertProvider(ExpertProvider):
 
 
 class MuJoCoHeuristicExpertProvider(ExpertProvider):
-    """MuJoCo heuristic expert with optional one-step rollout action scoring."""
+    """MuJoCo heuristic expert with calibrated short-horizon rollout scoring."""
 
     provider_id = "mujoco-heuristic"
 
@@ -205,11 +208,18 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         self,
         gain: float = 0.5,
         reject_idle_threshold: float = 1e-6,
-        rollout_margin: float = 0.05,
+        rollout_margin: float | None = None,
+        rollout_horizon: int | None = None,
     ) -> None:
         self.gain = gain
         self.reject_idle_threshold = reject_idle_threshold
-        self.rollout_margin = rollout_margin
+        self.rollout_margin = float(
+            rollout_margin if rollout_margin is not None else os.getenv("NYSSA_MUJOCO_ROLLOUT_MARGIN", "0.25")
+        )
+        self.rollout_horizon = max(
+            1,
+            int(rollout_horizon if rollout_horizon is not None else os.getenv("NYSSA_MUJOCO_ROLLOUT_HORIZON", "3")),
+        )
         self._bounds = BoundsVerifierExpertProvider()
 
     def act(self, observation: dict[str, Any], *, task: Any, engine: Any | None = None) -> Any | None:
@@ -257,6 +267,9 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         bounds_score = self._bounds.score_action(observation, action, task=task, engine=engine)
         if not bounds_score.accepted:
             return bounds_score
+        score = self._rollout_score_against_candidates(observation, action, task=task, engine=engine)
+        if score is not None:
+            return score
         try:
             import numpy as np
 
@@ -266,16 +279,14 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
                 return ExpertActionScore(accepted=False, confidence=0.5, reason="idle_action_on_nonzero_state")
         except Exception:
             pass
-        score = self._rollout_score_against_candidates(observation, action, task=task, engine=engine)
-        if score is not None:
-            return score
         return ExpertActionScore(accepted=True, confidence=0.5, reason=None)
 
     def metadata(self) -> dict[str, Any]:
         return {
             "provider_id": self.provider_id,
-            "capabilities": ["act", "recover", "score_action", "one_step_rollout_score"],
+            "capabilities": ["act", "recover", "score_action", "short_horizon_rollout_score"],
             "rollout_margin": self.rollout_margin,
+            "rollout_horizon": self.rollout_horizon,
         }
 
     def _rollout_score_against_candidates(
@@ -288,30 +299,42 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
     ) -> ExpertActionScore | None:
         if engine is None:
             return None
-        proposed_reward = _evaluate_mujoco_action(engine, action)
-        if proposed_reward is None:
+        proposed_return = _evaluate_mujoco_action_sequence(engine, [action] * self.rollout_horizon)
+        if proposed_return is None:
             return None
-        best_reward = proposed_reward
-        for candidate in self._candidate_actions(observation, include_zero=True):
-            reward = _evaluate_mujoco_action(engine, candidate)
-            if reward is not None:
-                best_reward = max(best_reward, reward)
-        if best_reward > proposed_reward + self.rollout_margin:
-            confidence = min(1.0, max(0.0, best_reward - proposed_reward))
+        best_return = proposed_return
+        best_index = None
+        for candidate_index, candidate in enumerate(self._candidate_actions(observation, include_zero=True)):
+            candidate_return = _evaluate_mujoco_action_sequence(engine, [candidate] * self.rollout_horizon)
+            if candidate_return is not None and candidate_return > best_return:
+                best_return = candidate_return
+                best_index = candidate_index
+        gap = best_return - proposed_return
+        details = {
+            "proposed_return": proposed_return,
+            "best_candidate_return": best_return,
+            "score_gap": gap,
+            "rollout_margin": self.rollout_margin,
+            "rollout_horizon": self.rollout_horizon,
+            "best_candidate_index": best_index,
+        }
+        if gap > self.rollout_margin:
+            confidence = min(1.0, max(0.0, gap / max(1.0, abs(best_return), abs(proposed_return))))
             return ExpertActionScore(
                 accepted=False,
                 confidence=confidence,
                 reason="lower_than_candidate_reward",
+                details=details,
             )
-        return ExpertActionScore(accepted=True, confidence=0.75, reason=None)
+        return ExpertActionScore(accepted=True, confidence=0.75, reason=None, details=details)
 
     def _best_rollout_candidate(self, observation: dict[str, Any], *, task: Any, engine: Any) -> Any | None:
         best_action = None
-        best_reward = None
+        best_return = None
         for candidate in self._candidate_actions(observation, include_zero=True):
-            reward = _evaluate_mujoco_action(engine, candidate)
-            if reward is not None and (best_reward is None or reward > best_reward):
-                best_reward = reward
+            candidate_return = _evaluate_mujoco_action_sequence(engine, [candidate] * self.rollout_horizon)
+            if candidate_return is not None and (best_return is None or candidate_return > best_return):
+                best_return = candidate_return
                 best_action = candidate
         return best_action
 
@@ -396,6 +419,10 @@ def _prod(values: tuple[int, ...]) -> int:
 
 
 def _evaluate_mujoco_action(engine: Any, action: Any) -> float | None:
+    return _evaluate_mujoco_action_sequence(engine, [action])
+
+
+def _evaluate_mujoco_action_sequence(engine: Any, actions: list[Any]) -> float | None:
     env = getattr(engine, "env", None)
     if env is None:
         return None
@@ -403,8 +430,13 @@ def _evaluate_mujoco_action(engine: Any, action: Any) -> float | None:
     if snapshot is None:
         return None
     try:
-        _, reward, _, _, _ = env.step(action)
-        return float(reward)
+        total_reward = 0.0
+        for action in actions:
+            _, reward, terminated, truncated, _ = env.step(action)
+            total_reward += float(reward)
+            if terminated or truncated:
+                break
+        return total_reward
     except Exception:
         return None
     finally:

@@ -240,12 +240,41 @@ def test_mujoco_expert_uses_rollout_scoring_and_restores_state():
 
     assert score.accepted is False
     assert score.reason == "lower_than_candidate_reward"
+    assert score.details is not None
+    assert score.details["rollout_horizon"] == 3
+    assert score.details["score_gap"] > score.details["rollout_margin"]
     assert recovery is not None
     assert np.asarray(recovery[0]).tolist() == [-1.0, 1.0]
     assert engine.env.unwrapped.data.qpos.tolist() == [0.0, 0.0]
     assert engine.env.unwrapped.data.qvel.tolist() == [0.0, 0.0]
     assert engine.elapsed_steps == 0
     assert engine.episode_return == 0.0
+
+
+def test_mujoco_expert_accepts_near_expert_action_inside_rollout_margin():
+    from nyssa_bench.experts.base import MuJoCoHeuristicExpertProvider
+
+    task = Suite.load("mujoco_control_v0").tasks[0]
+    expert = MuJoCoHeuristicExpertProvider(rollout_margin=0.25, rollout_horizon=3)
+    engine = _FakeMuJoCoEngine()
+    observation = {
+        "raw": [1.0, -1.0],
+        "action_space": {
+            "type": "box",
+            "shape": [2],
+            "low": [-1.0, -1.0],
+            "high": [1.0, 1.0],
+        },
+    }
+
+    score = expert.score_action(observation, [-0.95, 1.0], task=task, engine=engine)
+
+    assert score.accepted is True
+    assert score.reason is None
+    assert score.details is not None
+    assert 0.0 < score.details["score_gap"] <= score.details["rollout_margin"]
+    assert engine.env.unwrapped.data.qpos.tolist() == [0.0, 0.0]
+    assert engine.env.unwrapped.data.qvel.tolist() == [0.0, 0.0]
 
 
 def test_runner_executes_action_chunks(tmp_path: Path):
