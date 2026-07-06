@@ -133,6 +133,8 @@ def _make_run(run_dir: Path, *, policy: str, success_rate: float = 0.1) -> Path:
         "package_versions.json",
         "git_info.json",
         "episodes.jsonl",
+        "dataset_manifest.json",
+        "failure_gallery.html",
         "report.html",
     ]:
         (run_dir / name).write_text("{}\n", encoding="utf-8")

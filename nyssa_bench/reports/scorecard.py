@@ -18,6 +18,8 @@ REQUIRED_RUN_FILES = [
     "git_info.json",
     "metrics.json",
     "episodes.jsonl",
+    "dataset_manifest.json",
+    "failure_gallery.html",
     "report.html",
 ]
 
@@ -109,6 +111,7 @@ def _load_scorecard_result(run_dir: Path) -> dict[str, Any]:
     _validate_run_artifacts(run_dir)
     metadata = yaml.safe_load((run_dir / "run.yaml").read_text(encoding="utf-8")) or {}
     metrics = json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))
+    aggregate_metrics = metrics.get("metrics", {}) if isinstance(metrics.get("metrics", {}), dict) else {}
     return {
         "run_dir": _display_path(run_dir),
         "run_id": metadata.get("run_id"),
@@ -120,8 +123,16 @@ def _load_scorecard_result(run_dir: Path) -> dict[str, Any]:
         "seed": metadata.get("seed"),
         "started_at": metadata.get("started_at"),
         "finished_at": metadata.get("finished_at"),
+        "wall_time_seconds": metadata.get("wall_time_seconds"),
+        "compute": metrics.get("compute", {}),
+        "expert_provider": metadata.get("expert_provider", {"provider_id": "none"}),
+        "recovery_enabled": bool(metadata.get("recovery_enabled", False)),
+        "verifier_enabled": bool(metadata.get("verifier_enabled", False)),
         "success_rate": metrics.get("success_rate", 0.0),
         "success_rate_ci95": metrics.get("success_rate_ci95", [0.0, 0.0]),
+        "expert_intervention_rate": aggregate_metrics.get("expert_intervention_rate", 0.0),
+        "recovery_success_rate": aggregate_metrics.get("recovery_success_rate", 0.0),
+        "verifier_rejection_rate": aggregate_metrics.get("verifier_rejection_rate", 0.0),
         "prototype_reliability_score": metrics.get(
             "prototype_reliability_score", metrics.get("sim_to_real_score", 0.0)
         ),

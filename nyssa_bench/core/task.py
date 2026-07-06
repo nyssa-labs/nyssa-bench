@@ -23,6 +23,11 @@ class TaskSpec:
     objects: list[dict[str, Any]] = field(default_factory=list)
     success: dict[str, Any] = field(default_factory=dict)
     randomization: dict[str, Any] = field(default_factory=dict)
+    observation: dict[str, Any] = field(default_factory=dict)
+    action: dict[str, Any] = field(default_factory=dict)
+    goal: dict[str, Any] = field(default_factory=dict)
+    experts: dict[str, Any] = field(default_factory=dict)
+    ood_splits: dict[str, Any] = field(default_factory=dict)
     metrics: list[str] = field(default_factory=list)
     failure_labels: list[str] = field(default_factory=list)
     source_path: Path | None = None
@@ -43,6 +48,11 @@ class TaskSpec:
             objects=list(data.get("objects", [])),
             success=dict(data.get("success", {})),
             randomization=dict(data.get("randomization", {})),
+            observation=dict(data.get("observation", {})),
+            action=dict(data.get("action", {})),
+            goal=dict(data.get("goal", {})),
+            experts=dict(data.get("experts", {})),
+            ood_splits=dict(data.get("ood_splits", {})),
             metrics=list(data.get("metrics", [])),
             failure_labels=list(data.get("failure_labels", [])),
             source_path=source_path,
@@ -65,6 +75,11 @@ class TaskSpec:
             "objects": self.objects,
             "success": self.success,
             "randomization": self.randomization,
+            "observation": self.observation,
+            "action": self.action,
+            "goal": self.goal,
+            "experts": self.experts,
+            "ood_splits": self.ood_splits,
             "metrics": self.metrics,
             "failure_labels": self.failure_labels,
         }

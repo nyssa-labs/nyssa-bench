@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import html
 import shutil
 from pathlib import Path
 from typing import Any
@@ -139,4 +140,48 @@ def write_replay_manifest(episodes: list[EpisodeResult], out_dir: str | Path) ->
     }
     path = out_dir / "replay_manifest.json"
     path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return path
+
+
+def write_failure_gallery(episodes: list[EpisodeResult], out_dir: str | Path, *, limit: int = 24) -> Path:
+    out_dir = Path(out_dir)
+    failures = [episode for episode in episodes if not episode.success]
+    failures = sorted(failures, key=lambda episode: len(episode.steps), reverse=True)[:limit]
+    rows = []
+    for episode in failures:
+        clip = episode.failure_clip_path or episode.replay_path
+        replay = f'<a href="{html.escape(str(clip))}">video</a>' if clip else "none"
+        rows.append(
+            "<tr>"
+            f"<td>{html.escape(episode.task_id)}</td>"
+            f"<td>{episode.episode_index}</td>"
+            f"<td>{episode.seed}</td>"
+            f"<td>{html.escape(str(episode.failure_label or 'unknown'))}</td>"
+            f"<td>{len(episode.steps)}</td>"
+            f"<td>{replay}</td>"
+            "</tr>"
+        )
+    body = "".join(rows) if rows else "<tr><td colspan=\"6\">No failures recorded.</td></tr>"
+    text = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>NyssaBench Failure Gallery</title>
+  <style>
+    body {{ font-family: Inter, Arial, sans-serif; margin: 40px; color: #17202a; }}
+    table {{ border-collapse: collapse; width: 100%; }}
+    th, td {{ border-bottom: 1px solid #d8dee4; padding: 8px; text-align: left; }}
+  </style>
+</head>
+<body>
+  <h1>Failure Gallery</h1>
+  <table>
+    <thead><tr><th>Task</th><th>Episode</th><th>Seed</th><th>Failure</th><th>Steps</th><th>Replay</th></tr></thead>
+    <tbody>{body}</tbody>
+  </table>
+</body>
+</html>
+"""
+    path = out_dir / "failure_gallery.html"
+    path.write_text(text, encoding="utf-8")
     return path

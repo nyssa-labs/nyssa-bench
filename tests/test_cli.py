@@ -166,6 +166,41 @@ def test_cli_experiment_writes_result_pack(tmp_path: Path):
     assert (out / "random" / "seed_1" / "metrics.json").exists()
 
 
+def test_cli_ablate_writes_variant_pack(tmp_path: Path):
+    _register_cli_engine()
+    out = tmp_path / "ablation"
+
+    assert (
+        main(
+            [
+                "ablate",
+                "--suite",
+                "maniskill_smoke_v0",
+                "--engine",
+                "cli_real",
+                "--policy",
+                "random",
+                "--seeds",
+                "0",
+                "--episodes",
+                "1",
+                "--variants",
+                "base",
+                "verifier",
+                "--out",
+                str(out),
+                "--no-replay",
+            ]
+        )
+        == 0
+    )
+
+    assert (out / "manifest.json").exists()
+    assert (out / "RESULTS.md").exists()
+    assert (out / "base" / "seed_0" / "metrics.json").exists()
+    assert (out / "verifier" / "seed_0" / "metrics.json").exists()
+
+
 def test_cli_train_bc_writes_checkpoint(tmp_path: Path):
     episodes = tmp_path / "episodes.json"
     episodes.write_text(

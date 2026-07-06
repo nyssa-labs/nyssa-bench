@@ -45,6 +45,11 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--out", required=True)
     run_parser.add_argument("--no-replay", action="store_true")
     run_parser.add_argument("--capture-replay", action="store_true")
+    run_parser.add_argument("--expert-provider", default="none")
+    run_parser.add_argument("--enable-recovery", action="store_true")
+    run_parser.add_argument("--enable-verifier", action="store_true")
+    run_parser.add_argument("--policy-action-horizon", type=int, default=1)
+    run_parser.add_argument("--policy-execution-horizon", type=int, default=1)
 
     report_parser = subparsers.add_parser("report")
     report_parser.add_argument("run")
@@ -85,6 +90,31 @@ def main(argv: list[str] | None = None) -> int:
     experiment_parser.add_argument("--max-steps", type=int)
     experiment_parser.add_argument("--no-replay", action="store_true")
     experiment_parser.add_argument("--capture-replay", action="store_true")
+    experiment_parser.add_argument("--expert-provider", default="none")
+    experiment_parser.add_argument("--enable-recovery", action="store_true")
+    experiment_parser.add_argument("--enable-verifier", action="store_true")
+    experiment_parser.add_argument("--policy-action-horizon", type=int, default=1)
+    experiment_parser.add_argument("--policy-execution-horizon", type=int, default=1)
+
+    ablate_parser = subparsers.add_parser("ablate")
+    ablate_parser.add_argument("--suite", required=True)
+    ablate_parser.add_argument("--engine", default="maniskill")
+    ablate_parser.add_argument("--policy", default="random")
+    ablate_parser.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2])
+    ablate_parser.add_argument("--episodes", type=int, default=100)
+    ablate_parser.add_argument("--out", default="benchmark_results/ablation")
+    ablate_parser.add_argument("--max-steps", type=int)
+    ablate_parser.add_argument("--expert-provider", default="none")
+    ablate_parser.add_argument(
+        "--variants",
+        nargs="+",
+        default=["base", "verifier", "recovery", "verifier_recovery"],
+        choices=["base", "verifier", "recovery", "verifier_recovery"],
+    )
+    ablate_parser.add_argument("--no-replay", action="store_true")
+    ablate_parser.add_argument("--capture-replay", action="store_true")
+    ablate_parser.add_argument("--policy-action-horizon", type=int, default=1)
+    ablate_parser.add_argument("--policy-execution-horizon", type=int, default=1)
 
     train_bc_parser = subparsers.add_parser("train-bc")
     train_bc_parser.add_argument("episodes", nargs="+")
@@ -145,6 +175,11 @@ def main(argv: list[str] | None = None) -> int:
             seed=args.seed,
             out=args.out,
             capture_replay=_capture_replay_default(args.engine, args.no_replay, args.capture_replay),
+            expert_provider=args.expert_provider,
+            enable_recovery=args.enable_recovery,
+            enable_verifier=args.enable_verifier,
+            policy_action_horizon=args.policy_action_horizon,
+            policy_execution_horizon=args.policy_execution_horizon,
         )
         report = runner.evaluate(suite)
         print(f"report: {Path(args.out) / 'report.html'}")
@@ -221,6 +256,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{label}: {path}")
         return 0
 
+    if args.command == "ablate":
+        paths = _run_ablation(args)
+        for label, path in paths.items():
+            print(f"{label}: {path}")
+        return 0
+
     if args.command == "train-bc":
         out = _train_bc_from_episode_files(args.episodes, args.out, feature_dim=args.feature_dim, ridge=args.ridge)
         print(f"bc_checkpoint: {out}")
@@ -274,6 +315,11 @@ def _run_experiment(args: argparse.Namespace) -> dict[str, Path]:
                 out=run_dir,
                 max_steps=args.max_steps,
                 capture_replay=_capture_replay_default(args.engine, args.no_replay, args.capture_replay),
+                expert_provider=args.expert_provider,
+                enable_recovery=args.enable_recovery,
+                enable_verifier=args.enable_verifier,
+                policy_action_horizon=args.policy_action_horizon,
+                policy_execution_horizon=args.policy_execution_horizon,
             )
             runner.evaluate(suite)
             run_dirs.append(run_dir)
@@ -308,6 +354,82 @@ def _run_experiment(args: argparse.Namespace) -> dict[str, Path]:
         suite_id=args.suite,
         engine=args.engine,
         policies=list(args.policies),
+        seeds=list(args.seeds),
+        episodes_per_task=args.episodes,
+        run_dirs=run_dirs,
+        artifacts={
+            "comparison_report": comparison_path,
+            "leaderboard": leaderboard_path,
+            "scorecard": scorecard_path,
+            "results": results_path,
+        },
+    )
+    return {
+        "manifest": manifest_path,
+        "results": results_path,
+        "comparison_report": comparison_path,
+        "leaderboard": leaderboard_path,
+        "scorecard": scorecard_path,
+    }
+
+
+def _run_ablation(args: argparse.Namespace) -> dict[str, Path]:
+    suite = Suite.load(args.suite)
+    out_dir = Path(args.out)
+    run_dirs: list[Path] = []
+    variants = list(args.variants)
+    for variant in variants:
+        enable_verifier = variant in {"verifier", "verifier_recovery"}
+        enable_recovery = variant in {"recovery", "verifier_recovery"}
+        for seed in args.seeds:
+            run_dir = out_dir / variant / f"seed_{seed}"
+            runner = PolicyRunner(
+                policy=args.policy,
+                engine=args.engine,
+                episodes=args.episodes,
+                seed=seed,
+                out=run_dir,
+                max_steps=args.max_steps,
+                capture_replay=_capture_replay_default(args.engine, args.no_replay, args.capture_replay),
+                expert_provider=args.expert_provider,
+                enable_recovery=enable_recovery,
+                enable_verifier=enable_verifier,
+                policy_action_horizon=args.policy_action_horizon,
+                policy_execution_horizon=args.policy_execution_horizon,
+            )
+            runner.evaluate(suite)
+            run_dirs.append(run_dir)
+
+    comparison_path = out_dir / "comparison.html"
+    leaderboard_path = out_dir / "leaderboard.json"
+    scorecard_path = out_dir / "scorecard.json"
+    comparison = compare_runs(run_dirs)
+    save_comparison_report(comparison, comparison_path)
+    save_leaderboard(comparison, leaderboard_path)
+    write_scorecard(
+        run_dirs,
+        out=scorecard_path,
+        benchmark=f"{args.suite} ablation matrix",
+        comparison_report=comparison_path,
+        leaderboard=leaderboard_path,
+    )
+    results_path = write_results_markdown(
+        out_dir=out_dir,
+        suite_id=args.suite,
+        engine=args.engine,
+        policies=[f"{args.policy}:{variant}" for variant in variants],
+        seeds=list(args.seeds),
+        episodes_per_task=args.episodes,
+        run_dirs=run_dirs,
+        comparison_report=comparison_path,
+        leaderboard=leaderboard_path,
+        scorecard=scorecard_path,
+    )
+    manifest_path = write_experiment_manifest(
+        out_dir=out_dir,
+        suite_id=args.suite,
+        engine=args.engine,
+        policies=[args.policy],
         seeds=list(args.seeds),
         episodes_per_task=args.episodes,
         run_dirs=run_dirs,

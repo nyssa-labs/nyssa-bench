@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,9 @@ from nyssa_bench.core.task import REPO_ROOT
 from nyssa_bench.datasets.export_json import export_json
 from nyssa_bench.datasets.export_jsonl import export_jsonl
 from nyssa_bench.datasets.export_metrics_csv import export_metrics_csv
+from nyssa_bench.datasets.provenance import write_dataset_manifest
+from nyssa_bench.datasets.recovery import write_recovery_dataset
+from nyssa_bench.experts import ExpertProvider, make_expert_provider
 from nyssa_bench.metrics.failure_mapper import FailureMapper
 from nyssa_bench.metrics.robustness import robustness_metrics
 from nyssa_bench.metrics.safety import safety_metrics
@@ -20,7 +24,7 @@ from nyssa_bench.metrics.sim_to_real import score_summary
 from nyssa_bench.metrics.success import aggregate_episodes
 from nyssa_bench.policies.base import Policy, PolicyLike, load_policy_from_path
 from nyssa_bench.randomization import aggregate_stressor_support, summarize_stressor_support
-from nyssa_bench.replay.video import write_episode_video, write_failure_clip, write_replay_manifest
+from nyssa_bench.replay.video import write_episode_video, write_failure_clip, write_failure_gallery, write_replay_manifest
 from nyssa_bench.replay.viewer import replay_viewer_placeholder
 from nyssa_bench.reports.html_report import Report
 from nyssa_bench.metrics.run_claims import RunClaimValidator
@@ -46,6 +50,11 @@ class PolicyRunner:
         out: str | Path | None = None,
         max_steps: int | None = None,
         capture_replay: bool = True,
+        expert_provider: str | Path | ExpertProvider | None = None,
+        enable_recovery: bool = False,
+        enable_verifier: bool = False,
+        policy_action_horizon: int = 1,
+        policy_execution_horizon: int = 1,
     ) -> None:
         self.policy_ref = policy
         self.engine_name = engine
@@ -54,6 +63,11 @@ class PolicyRunner:
         self.out = Path(out) if out else None
         self.max_steps = max_steps
         self.capture_replay = capture_replay
+        self.expert_provider_ref = expert_provider
+        self.enable_recovery = enable_recovery
+        self.enable_verifier = enable_verifier
+        self.policy_action_horizon = max(1, int(policy_action_horizon))
+        self.policy_execution_horizon = max(1, int(policy_execution_horizon))
         self.episode_results: list[EpisodeResult] = []
         self.run_metadata: dict[str, Any] = {}
         self._failure_mapper = FailureMapper()
@@ -61,8 +75,10 @@ class PolicyRunner:
     def evaluate(self, suite: Suite) -> Report:
         policy = self._load_policy()
         engine = make_engine(self.engine_name)
+        expert_provider = make_expert_provider(self.expert_provider_ref)
         results: list[EpisodeResult] = []
         started_at = utc_now()
+        started_perf = time.perf_counter()
 
         try:
             for task in suite.tasks:
@@ -71,14 +87,23 @@ class PolicyRunner:
                     episode_seed = self.seed + len(results)
                     if hasattr(policy, "reset"):
                         policy.reset(task=task, seed=episode_seed)
-                    results.append(self._run_episode(engine, policy, task, episode_index, episode_seed))
+                    expert_provider.reset(task=task, seed=episode_seed, engine=engine)
+                    results.append(self._run_episode(engine, policy, expert_provider, task, episode_index, episode_seed))
         finally:
             engine.close()
             if hasattr(policy, "close"):
                 policy.close()
+            expert_provider.close()
 
         self.episode_results = results
         summary = aggregate_episodes(results)
+        wall_time_seconds = time.perf_counter() - started_perf
+        summary["compute"] = {
+            "wall_time_seconds": wall_time_seconds,
+            "episodes_per_second": len(results) / wall_time_seconds if wall_time_seconds > 0 else 0.0,
+            "training_time_seconds": 0.0,
+            "inference_only": True,
+        }
         score = score_summary(summary)
         summary["prototype_reliability_score"] = score
         summary["score_kind"] = "prototype_reliability_heuristic"
@@ -99,6 +124,16 @@ class PolicyRunner:
             "seed": self.seed,
             "started_at": started_at,
             "finished_at": utc_now(),
+            "wall_time_seconds": wall_time_seconds,
+            "expert_provider": expert_provider.metadata(),
+            "recovery_enabled": self.enable_recovery,
+            "verifier_enabled": self.enable_verifier,
+            "policy_metadata": _policy_metadata(policy),
+            "action_sequence": {
+                "action_horizon": self.policy_action_horizon,
+                "execution_horizon": self.policy_execution_horizon,
+                "receding_horizon": self.policy_action_horizon > 1,
+            },
         }
         env_metadata = environment_metadata()
         versions = package_versions()
@@ -126,11 +161,26 @@ class PolicyRunner:
             self._write_run_artifacts(suite, report, env_metadata=env_metadata, versions=versions, git=git)
         return report
 
-    def _run_episode(self, engine: Any, policy: PolicyLike, task: Any, episode_index: int, seed: int) -> EpisodeResult:
+    def _run_episode(
+        self,
+        engine: Any,
+        policy: PolicyLike,
+        expert_provider: ExpertProvider,
+        task: Any,
+        episode_index: int,
+        seed: int,
+    ) -> EpisodeResult:
         observation, _ = engine.reset(seed=seed)
         steps: list[StepRecord] = []
         frames: list[Any] = []
         last_info: dict[str, Any] = {}
+        expert_intervention_count = 0
+        recovery_attempt_count = 0
+        recovery_success_count = 0
+        verifier_rejection_count = 0
+        policy_action_chunk_count = 0
+        policy_cached_action_count = 0
+        pending_actions: list[Any] = []
         step_limit = self.max_steps or getattr(engine, "max_steps", 1000)
         if self.out and self.capture_replay:
             frame = _safe_render(engine)
@@ -138,8 +188,58 @@ class PolicyRunner:
                 frames.append(frame)
 
         for _ in range(step_limit):
-            action = policy.act(observation)
+            if pending_actions:
+                action = pending_actions.pop(0)
+                policy_cached_action_count += 1
+                chunk_size = 0
+            else:
+                raw_action = policy.act(observation)
+                action, pending_actions, chunk_size = _split_action_chunk(
+                    raw_action,
+                    action_horizon=self.policy_action_horizon,
+                    execution_horizon=self.policy_execution_horizon,
+                )
+                if chunk_size > 1:
+                    policy_action_chunk_count += 1
+            expert_info: dict[str, Any] = {
+                "expert_provider": expert_provider.metadata().get("provider_id", "unknown"),
+                "expert_intervention": False,
+                "recovery_attempted": False,
+                "recovery_applied": False,
+                "recovery_success": False,
+                "verifier_rejected": False,
+                "policy_action_chunk_size": chunk_size,
+                "policy_cached_action": chunk_size == 0,
+            }
+            if self.enable_verifier:
+                score = expert_provider.score_action(observation, action, task=task, engine=engine)
+                expert_info["verifier"] = score.to_dict()
+                if not score.accepted:
+                    verifier_rejection_count += 1
+                    expert_info["verifier_rejected"] = True
+                    expert_action = expert_provider.act(observation, task=task, engine=engine)
+                    if expert_action is not None:
+                        action = expert_action
+                        pending_actions = []
+                        expert_intervention_count += 1
+                        expert_info["expert_intervention"] = True
+            if self.enable_recovery and expert_info["verifier_rejected"]:
+                recovery_attempt_count += 1
+                expert_info["recovery_attempted"] = True
+                recovery_plan = expert_provider.recover(
+                    state=_safe_get_state(engine, observation=observation),
+                    failure=expert_info.get("verifier", {}).get("reason"),
+                    task=task,
+                    engine=engine,
+                )
+                if recovery_plan:
+                    action = recovery_plan[0]
+                    pending_actions = []
+                    expert_intervention_count += 1
+                    expert_info["expert_intervention"] = True
+                    expert_info["recovery_applied"] = True
             next_observation, reward, terminated, truncated, info = engine.step(action)
+            info = {**info, **expert_info}
             if self.out and self.capture_replay:
                 frame = _safe_render(engine)
                 if frame is not None:
@@ -167,11 +267,23 @@ class PolicyRunner:
             truncated=bool(last_info.get("truncated", False)) or (bool(steps[-1].truncated) if steps else False),
         )
         failure_label = None if success else classification.label
+        recovery_success_count = 1 if recovery_attempt_count and success else 0
         metrics = {
             "completion_time": float(last_info.get("completion_time", len(steps))),
             "path_efficiency": float(last_info.get("path_efficiency", 0.0)),
             "grasp_success_rate": 1.0 if bool(last_info.get("grasp_success", False)) else 0.0,
-            "recovery_success_rate": 1.0 if success and len(steps) > 1 else 0.0,
+            "expert_intervention_count": float(expert_intervention_count),
+            "expert_intervention_rate": float(expert_intervention_count / len(steps)) if steps else 0.0,
+            "recovery_attempt_count": float(recovery_attempt_count),
+            "recovery_success_count": float(recovery_success_count),
+            "recovery_success_rate": float(recovery_success_count / recovery_attempt_count)
+            if recovery_attempt_count
+            else 0.0,
+            "verifier_rejection_count": float(verifier_rejection_count),
+            "verifier_rejection_rate": float(verifier_rejection_count / len(steps)) if steps else 0.0,
+            "policy_action_chunk_count": float(policy_action_chunk_count),
+            "policy_cached_action_count": float(policy_cached_action_count),
+            "policy_cached_action_rate": float(policy_cached_action_count / len(steps)) if steps else 0.0,
             "drop_rate": 1.0 if failure_label == "object_slip" else 0.0,
             **safety_metrics({**last_info, "failure_label": failure_label}),
             **robustness_metrics({**last_info, "failure_label": failure_label}),
@@ -198,6 +310,8 @@ class PolicyRunner:
 
     def _load_policy(self) -> PolicyLike:
         if isinstance(self.policy_ref, Policy):
+            return self.policy_ref
+        if not isinstance(self.policy_ref, str) and callable(getattr(self.policy_ref, "act", None)):
             return self.policy_ref
         path = Path(str(self.policy_ref))
         if path.suffix == ".py" or path.exists():
@@ -227,6 +341,13 @@ class PolicyRunner:
             "engine": self.engine_name,
             "episodes_per_task": self.episodes,
             "seed": self.seed,
+            "expert_provider": self.run_metadata.get("expert_provider", {"provider_id": "none"}),
+            "recovery_enabled": self.enable_recovery,
+            "verifier_enabled": self.enable_verifier,
+            "action_sequence": self.run_metadata.get(
+                "action_sequence",
+                {"action_horizon": 1, "execution_horizon": 1, "receding_horizon": False},
+            ),
         }
         with (self.out / "run.yaml").open("w", encoding="utf-8") as handle:
             yaml.safe_dump(self.run_metadata, handle, sort_keys=False)
@@ -244,6 +365,22 @@ class PolicyRunner:
         export_json(self.episode_results, self.out / "episodes.json")
         export_jsonl(self.episode_results, self.out / "episodes.jsonl")
         write_replay_manifest(self.episode_results, self.out)
+        write_failure_gallery(self.episode_results, self.out)
+        write_recovery_dataset(self.episode_results, self.out)
+        write_dataset_manifest(
+            out_dir=self.out,
+            suite=suite,
+            run_metadata=self.run_metadata,
+            artifact_names=[
+                "episodes.json",
+                "episodes.jsonl",
+                "metrics.json",
+                "metrics.csv",
+                "replay_manifest.json",
+                "failure_gallery.html",
+                "recovery_dataset/episodes.jsonl",
+            ],
+        )
         replay_viewer_placeholder(self.out)
         report.save(self.out / "report.html")
 
@@ -253,3 +390,62 @@ def _safe_render(engine: Any) -> Any:
         return engine.render()
     except Exception:
         return None
+
+
+def _safe_get_state(engine: Any, *, observation: dict[str, Any] | None = None) -> dict[str, Any]:
+    try:
+        state = engine.get_state()
+    except Exception:
+        state = {}
+    state_dict = state if isinstance(state, dict) else {"state": state}
+    if observation is not None:
+        state_dict = {**state_dict, "observation": observation}
+    return state_dict
+
+
+def _policy_metadata(policy: Any) -> dict[str, Any]:
+    metadata = getattr(policy, "metadata", None)
+    if callable(metadata):
+        value = metadata()
+        if isinstance(value, dict):
+            return value
+    return {"policy_class": policy.__class__.__name__}
+
+
+def _split_action_chunk(
+    action: Any,
+    *,
+    action_horizon: int,
+    execution_horizon: int,
+) -> tuple[Any, list[Any], int]:
+    if action_horizon <= 1:
+        return action, [], 1
+
+    sequence = _as_action_sequence(action)
+    if not sequence:
+        return action, [], 1
+
+    limited = sequence[: max(1, min(action_horizon, execution_horizon, len(sequence)))]
+    return limited[0], list(limited[1:]), len(limited)
+
+
+def _as_action_sequence(action: Any) -> list[Any] | None:
+    if hasattr(action, "detach"):
+        action = action.detach()
+    if hasattr(action, "cpu"):
+        action = action.cpu()
+    if hasattr(action, "numpy"):
+        action = action.numpy()
+    try:
+        import numpy as np
+
+        array = np.asarray(action)
+        if array.ndim >= 2:
+            return [array[index] for index in range(array.shape[0])]
+    except Exception:
+        pass
+    if isinstance(action, (list, tuple)) and action:
+        first = action[0]
+        if isinstance(first, (list, tuple, dict)) or hasattr(first, "tolist"):
+            return list(action)
+    return None

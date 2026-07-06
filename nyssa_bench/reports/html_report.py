@@ -30,6 +30,10 @@ class Report:
         validation = self.summary.get("public_claim_validation", {})
         stressor_support = self.summary.get("stressor_support", {})
         metrics = self.summary.get("metrics", {})
+        compute = self.summary.get("compute", {})
+        intervention_rate = float(metrics.get("expert_intervention_rate", 0.0)) * 100
+        recovery_rate = float(metrics.get("recovery_success_rate", 0.0)) * 100
+        verifier_rejection_rate = float(metrics.get("verifier_rejection_rate", 0.0)) * 100
         failure_counts = self.summary.get("failure_counts", {})
         per_task = self.summary.get("per_task", {})
         per_seed = self.summary.get("per_seed", {})
@@ -61,6 +65,9 @@ class Report:
     <div class="metric"><div>Primary failure mode</div><div class="value">{html.escape(str(primary_failure))}</div></div>
     <div class="metric"><div>Benchmark tier</div><div class="value">{html.escape(str(benchmark_tier))}</div></div>
     <div class="metric"><div>Public claim</div><div class="value">{html.escape(str(self.summary.get("public_claim", False)))}</div></div>
+    <div class="metric"><div>Expert intervention</div><div class="value">{intervention_rate:.1f}%</div></div>
+    <div class="metric"><div>Recovery success</div><div class="value">{recovery_rate:.1f}%</div></div>
+    <div class="metric"><div>Verifier rejection</div><div class="value">{verifier_rejection_rate:.1f}%</div></div>
   </section>
 
   <h2>Public-Claim Validation</h2>
@@ -77,6 +84,9 @@ class Report:
 
   <h2>Aggregate Metrics</h2>
   {_table(metrics)}
+
+  <h2>Compute Cost</h2>
+  {_table(compute)}
 
   <h2>Failure Clusters</h2>
   {_table(failure_counts)}
@@ -194,18 +204,21 @@ def _per_task_table(data: dict[str, Any]) -> str:
     for task_id, summary in sorted(data.items()):
         task_summary = dict(summary)
         success_rate = float(task_summary.get("success_rate", 0.0)) * 100
+        metrics = task_summary.get("metrics", {})
+        intervention_rate = float(metrics.get("expert_intervention_rate", 0.0)) * 100
         rows.append(
             "<tr>"
             f"<td>{html.escape(str(task_id))}</td>"
             f"<td>{int(task_summary.get('episodes', 0))}</td>"
             f"<td>{success_rate:.1f}%</td>"
             f"<td>{html.escape(_format_ci_percent(task_summary.get('success_rate_ci95', [])))}</td>"
+            f"<td>{intervention_rate:.1f}%</td>"
             f"<td>{html.escape(str(task_summary.get('primary_failure_mode') or 'none'))}</td>"
             "</tr>"
         )
     return (
         "<table><thead><tr><th>Task</th><th>Episodes</th><th>Success</th>"
-        "<th>95% CI</th><th>Primary failure</th></tr></thead>"
+        "<th>95% CI</th><th>Expert intervention</th><th>Primary failure</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table>"
     )
 

@@ -7,6 +7,7 @@ import pytest
 from nyssa_bench import PolicyRunner, Suite
 from nyssa_bench.engines.base import NyssaEngine
 from nyssa_bench.core.episode import EpisodeResult, StepRecord
+from nyssa_bench.experts import ExpertActionScore, ExpertProvider, make_expert_provider
 from nyssa_bench.metrics.failure_mapper import FailureMapper
 from nyssa_bench.metrics.run_claims import RunClaimValidator
 from nyssa_bench.policies.robomimic_adapter import RoboMimicPolicy
@@ -107,6 +108,9 @@ def test_runner_writes_artifacts(tmp_path: Path):
     assert report.summary["per_seed"]
     assert 0.0 <= report.summary["prototype_reliability_score"] <= 1.0
     assert report.summary["sim_to_real_score_deprecated"] is True
+    assert report.summary["metrics"]["expert_intervention_rate"] == 0.0
+    assert report.summary["metrics"]["recovery_success_rate"] == 0.0
+    assert report.summary["metrics"]["verifier_rejection_rate"] == 0.0
     assert "unsupported_stressors" in report.summary["stressor_support"]
     assert (tmp_path / "config.yaml").exists()
     assert (tmp_path / "run.yaml").exists()
@@ -117,6 +121,9 @@ def test_runner_writes_artifacts(tmp_path: Path):
     assert (tmp_path / "metrics.csv").exists()
     assert (tmp_path / "episodes.json").exists()
     assert (tmp_path / "episodes.jsonl").exists()
+    assert (tmp_path / "dataset_manifest.json").exists()
+    assert (tmp_path / "failure_gallery.html").exists()
+    assert (tmp_path / "recovery_dataset" / "manifest.json").exists()
     assert (tmp_path / "replay_manifest.json").exists()
     assert (tmp_path / "replay.html").exists()
     assert (tmp_path / "videos").is_dir()
@@ -124,6 +131,103 @@ def test_runner_writes_artifacts(tmp_path: Path):
     assert (tmp_path / "failures").is_dir()
     assert (tmp_path / "plots").is_dir()
     assert (tmp_path / "report.html").exists()
+
+
+def test_runner_records_expert_verifier_interventions(tmp_path: Path):
+    _register_unit_engine()
+
+    class RejectingExpert(ExpertProvider):
+        provider_id = "rejecting_unit"
+
+        def score_action(self, observation, action, *, task, engine=None):
+            return ExpertActionScore(accepted=False, confidence=0.1, reason="unit_reject")
+
+        def act(self, observation, *, task, engine=None):
+            return 0.0
+
+    suite = Suite.load("maniskill_smoke_v0")
+    runner = PolicyRunner(
+        policy="random",
+        engine="unit_real",
+        episodes=1,
+        seed=123,
+        out=tmp_path,
+        expert_provider=RejectingExpert(),
+        enable_verifier=True,
+        capture_replay=False,
+    )
+    report = runner.evaluate(suite)
+
+    assert report.summary["metrics"]["expert_intervention_rate"] == 1.0
+    assert report.summary["metrics"]["verifier_rejection_rate"] == 1.0
+    assert runner.run_metadata["expert_provider"]["provider_id"] == "rejecting_unit"
+    episodes = (tmp_path / "episodes.jsonl").read_text(encoding="utf-8").splitlines()
+    assert '"verifier_rejected": true' in episodes[0]
+
+
+def test_builtin_expert_providers_emit_actions():
+    task = Suite.load("maniskill_smoke_v0").tasks[0]
+    observation = _observation()
+
+    bounds = make_expert_provider("bounds-verifier")
+    assert bounds.score_action(observation, [2.0], task=task).accepted is False
+    assert bounds.act(observation, task=task) is not None
+
+    mujoco = make_expert_provider("mujoco-heuristic")
+    assert mujoco.act(observation, task=task) is not None
+    assert "recover" in mujoco.metadata()["capabilities"]
+
+    scripted = make_expert_provider("maniskill-scripted")
+    assert scripted.act(observation, task=task) is not None
+    assert scripted.metadata()["provider_id"] == "maniskill-scripted"
+
+
+def test_runner_executes_action_chunks(tmp_path: Path):
+    class TwoStepEngine(UnitEngine):
+        max_steps = 2
+
+        def reset(self, seed: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
+            self.elapsed = 0
+            return _observation(), {"seed": seed}
+
+        def step(self, action: Any) -> tuple[dict[str, Any], float, bool, bool, dict[str, Any]]:
+            self.elapsed += 1
+            return _observation(), 1.0, self.elapsed >= 2, False, {
+                "success": self.elapsed >= 2,
+                "completion_time": float(self.elapsed),
+                "path_efficiency": 1.0,
+                "grasp_success": True,
+            }
+
+    get_plugin_registry().engines["chunk_unit"] = TwoStepEngine
+
+    class ChunkPolicy:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def act(self, observation):
+            self.calls += 1
+            return np.asarray([[0.1], [0.2], [0.3]], dtype=float)
+
+    policy = ChunkPolicy()
+    suite = Suite.load("maniskill_smoke_v0")
+    runner = PolicyRunner(
+        policy=policy,
+        engine="chunk_unit",
+        episodes=1,
+        seed=123,
+        out=tmp_path,
+        capture_replay=False,
+        policy_action_horizon=3,
+        policy_execution_horizon=2,
+    )
+    report = runner.evaluate(suite)
+
+    assert policy.calls == 3
+    assert report.summary["metrics"]["policy_action_chunk_count"] == 1.0
+    assert report.summary["metrics"]["policy_cached_action_count"] == 1.0
+    assert runner.episode_results[0].steps[0].info["policy_action_chunk_size"] == 2
+    assert runner.episode_results[0].steps[1].info["policy_cached_action"] is True
 
 
 def test_public_claim_requires_replay_video_evidence(tmp_path: Path):
