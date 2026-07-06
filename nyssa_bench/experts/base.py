@@ -210,6 +210,8 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         reject_idle_threshold: float = 1e-6,
         rollout_margin: float | None = None,
         rollout_horizon: int | None = None,
+        candidate_count: int | None = None,
+        random_seed: int | None = None,
     ) -> None:
         self.gain = gain
         self.reject_idle_threshold = reject_idle_threshold
@@ -220,7 +222,22 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             1,
             int(rollout_horizon if rollout_horizon is not None else os.getenv("NYSSA_MUJOCO_ROLLOUT_HORIZON", "3")),
         )
+        self.candidate_count = max(
+            0,
+            int(candidate_count if candidate_count is not None else os.getenv("NYSSA_MUJOCO_CANDIDATES", "32")),
+        )
+        self.random_seed = int(random_seed if random_seed is not None else os.getenv("NYSSA_MUJOCO_SEED", "0"))
+        self._rng: Any | None = None
         self._bounds = BoundsVerifierExpertProvider()
+
+    def reset(self, *, task: Any | None = None, seed: int | None = None, engine: Any | None = None) -> None:
+        del task, engine
+        try:
+            import numpy as np
+
+            self._rng = np.random.default_rng(self.random_seed if seed is None else self.random_seed + int(seed))
+        except Exception:
+            self._rng = None
 
     def act(self, observation: dict[str, Any], *, task: Any, engine: Any | None = None) -> Any | None:
         if engine is not None:
@@ -287,6 +304,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             "capabilities": ["act", "recover", "score_action", "short_horizon_rollout_score"],
             "rollout_margin": self.rollout_margin,
             "rollout_horizon": self.rollout_horizon,
+            "candidate_count": self.candidate_count,
         }
 
     def _rollout_score_against_candidates(
@@ -304,8 +322,9 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             return None
         best_return = proposed_return
         best_index = None
-        for candidate_index, candidate in enumerate(self._candidate_actions(observation, include_zero=True)):
-            candidate_return = _evaluate_mujoco_action_sequence(engine, [candidate] * self.rollout_horizon)
+        candidates = self._candidate_action_sequences(observation, include_zero=True)
+        for candidate_index, candidate_sequence in enumerate(candidates):
+            candidate_return = _evaluate_mujoco_action_sequence(engine, candidate_sequence)
             if candidate_return is not None and candidate_return > best_return:
                 best_return = candidate_return
                 best_index = candidate_index
@@ -316,6 +335,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             "score_gap": gap,
             "rollout_margin": self.rollout_margin,
             "rollout_horizon": self.rollout_horizon,
+            "candidate_count": len(candidates),
             "best_candidate_index": best_index,
         }
         if gap > self.rollout_margin:
@@ -331,12 +351,17 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
     def _best_rollout_candidate(self, observation: dict[str, Any], *, task: Any, engine: Any) -> Any | None:
         best_action = None
         best_return = None
-        for candidate in self._candidate_actions(observation, include_zero=True):
-            candidate_return = _evaluate_mujoco_action_sequence(engine, [candidate] * self.rollout_horizon)
+        for candidate_sequence in self._candidate_action_sequences(observation, include_zero=True):
+            candidate_return = _evaluate_mujoco_action_sequence(engine, candidate_sequence)
             if candidate_return is not None and (best_return is None or candidate_return > best_return):
                 best_return = candidate_return
-                best_action = candidate
+                best_action = candidate_sequence[0] if candidate_sequence else None
         return best_action
+
+    def _candidate_action_sequences(self, observation: dict[str, Any], *, include_zero: bool) -> list[list[Any]]:
+        candidates = [[candidate] * self.rollout_horizon for candidate in self._candidate_actions(observation, include_zero=include_zero)]
+        candidates.extend(self._random_action_sequences(observation))
+        return candidates
 
     def _candidate_actions(self, observation: dict[str, Any], *, include_zero: bool) -> list[Any]:
         try:
@@ -365,6 +390,24 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         except Exception:
             fallback = self._heuristic_action(observation)
             return [fallback] if fallback is not None else []
+
+    def _random_action_sequences(self, observation: dict[str, Any]) -> list[list[Any]]:
+        if self.candidate_count <= 0:
+            return []
+        try:
+            import numpy as np
+
+            low, high, shape = action_bounds(observation)
+            rng = self._rng if self._rng is not None else np.random.default_rng(self.random_seed)
+            sequences: list[list[Any]] = []
+            for _ in range(self.candidate_count):
+                sequence = []
+                for _ in range(self.rollout_horizon):
+                    sequence.append(rng.uniform(low=low, high=high, size=shape))
+                sequences.append(sequence)
+            return sequences
+        except Exception:
+            return []
 
 
 def make_expert_provider(provider: str | Path | ExpertProvider | None) -> ExpertProvider:

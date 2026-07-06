@@ -43,6 +43,32 @@ class Suite:
             "tasks": [task.task_id for task in self.tasks],
         }
 
+    def filter_tasks(self, task_ids: list[str] | tuple[str, ...] | None) -> "Suite":
+        if not task_ids:
+            return self
+        requested = [str(task_id) for task_id in task_ids]
+        requested_set = set(requested)
+        tasks = tuple(
+            task
+            for task in self.tasks
+            if task.task_id in requested_set or (task.source_path is not None and task.source_path.stem in requested_set)
+        )
+        found = {task.task_id for task in tasks}
+        found.update(task.source_path.stem for task in tasks if task.source_path is not None)
+        missing = [task_id for task_id in requested if task_id not in found]
+        if missing:
+            available = ", ".join(task.task_id for task in self.tasks)
+            raise ValueError(
+                f"Suite '{self.suite_id}' does not contain requested task(s): {', '.join(missing)}. "
+                f"Available tasks: {available}"
+            )
+        return Suite(
+            suite_id=self.suite_id,
+            description=self.description,
+            tasks=tasks,
+            source_path=self.source_path,
+        )
+
 
 def resolve_suite_path(suite_id_or_path: str | Path) -> Path:
     candidate = Path(suite_id_or_path)

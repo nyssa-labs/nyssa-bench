@@ -39,6 +39,7 @@ def main(argv: list[str] | None = None) -> int:
 
     run_parser = subparsers.add_parser("run")
     run_parser.add_argument("--suite", required=True)
+    run_parser.add_argument("--tasks", nargs="+")
     run_parser.add_argument("--engine", default="maniskill")
     run_parser.add_argument("--policy", default="random")
     run_parser.add_argument("--episodes", type=int, default=10)
@@ -83,6 +84,7 @@ def main(argv: list[str] | None = None) -> int:
 
     experiment_parser = subparsers.add_parser("experiment")
     experiment_parser.add_argument("--suite", default="maniskill_manipulation_v0")
+    experiment_parser.add_argument("--tasks", nargs="+")
     experiment_parser.add_argument("--engine", default="maniskill")
     experiment_parser.add_argument("--policies", nargs="+", default=["random", "scripted_oracle", "bc_policy"])
     experiment_parser.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2])
@@ -99,6 +101,7 @@ def main(argv: list[str] | None = None) -> int:
 
     ablate_parser = subparsers.add_parser("ablate")
     ablate_parser.add_argument("--suite", required=True)
+    ablate_parser.add_argument("--tasks", nargs="+")
     ablate_parser.add_argument("--engine", default="maniskill")
     ablate_parser.add_argument("--policy", default="random")
     ablate_parser.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2])
@@ -179,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "run":
-        suite = Suite.load(args.suite)
+        suite = _load_suite(args)
         runner = PolicyRunner(
             policy=args.policy,
             engine=args.engine,
@@ -337,7 +340,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _run_experiment(args: argparse.Namespace) -> dict[str, Path]:
-    suite = Suite.load(args.suite)
+    suite = _load_suite(args)
     out_dir = Path(args.out)
     run_dirs: list[Path] = []
     for policy in args.policies:
@@ -410,7 +413,7 @@ def _run_experiment(args: argparse.Namespace) -> dict[str, Path]:
 
 
 def _run_ablation(args: argparse.Namespace) -> dict[str, Path]:
-    suite = Suite.load(args.suite)
+    suite = _load_suite(args)
     out_dir = Path(args.out)
     run_dirs: list[Path] = []
     variants = list(args.variants)
@@ -511,6 +514,11 @@ def _train_bc_from_episode_files(
             merged_path.unlink()
         except OSError:
             pass
+
+
+def _load_suite(args: argparse.Namespace) -> Suite:
+    suite = Suite.load(args.suite)
+    return suite.filter_tasks(getattr(args, "tasks", None))
 
 
 def _validate_target(target: str) -> None:

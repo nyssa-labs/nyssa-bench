@@ -194,11 +194,15 @@ MuJoCo verifier calibration can be tuned without code changes:
 ```bash
 NYSSA_MUJOCO_ROLLOUT_HORIZON=3 \
 NYSSA_MUJOCO_ROLLOUT_MARGIN=0.25 \
+NYSSA_MUJOCO_CANDIDATES=32 \
 uv run nyssa ablate ...
 ```
 
 Higher `NYSSA_MUJOCO_ROLLOUT_MARGIN` rejects fewer learned-policy actions.
-Lower values make the verifier more intervention-heavy.
+Lower values make the verifier more intervention-heavy. Higher
+`NYSSA_MUJOCO_CANDIDATES` spends more simulator rollouts searching for a better
+recovery action, which is most useful on higher-dimensional tasks such as
+`mujoco_pusher`.
 
 The same hooks are available on `run` and `experiment`:
 
@@ -213,6 +217,26 @@ uv run nyssa run \
   --enable-verifier \
   --enable-recovery \
   --out runs/mujoco_recovery_smoke \
+  --no-replay
+```
+
+Focus on a single task while debugging a weak task-specific result:
+
+```bash
+NYSSA_TASK_BC_DIR=checkpoints/recovery_bc_by_task \
+NYSSA_TASK_BC_MISSING=zero \
+NYSSA_MUJOCO_ROLLOUT_HORIZON=5 \
+NYSSA_MUJOCO_CANDIDATES=64 \
+uv run nyssa ablate \
+  --suite mujoco_control_v0 \
+  --tasks mujoco_pusher \
+  --engine mujoco \
+  --policy task_bc_policy \
+  --seeds 0 \
+  --episodes 20 \
+  --variants base verifier recovery verifier_recovery \
+  --expert-provider mujoco-heuristic \
+  --out benchmark_results/mujoco_pusher_calibrated_debug \
   --no-replay
 ```
 

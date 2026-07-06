@@ -91,6 +91,16 @@ def test_suite_loads_tasks():
     assert mujoco.tasks[0].success["engine_env_ids"]["mujoco"] == "Reacher-v5"
 
 
+def test_suite_filters_tasks():
+    suite = Suite.load("mujoco_control_v0").filter_tasks(["mujoco_pusher"])
+
+    assert suite.suite_id == "mujoco_control_v0"
+    assert [task.task_id for task in suite.tasks] == ["mujoco_pusher"]
+
+    with pytest.raises(ValueError, match="does not contain requested task"):
+        Suite.load("mujoco_control_v0").filter_tasks(["missing_task"])
+
+
 def test_mujoco_adapter_falls_back_to_available_gym_version():
     from nyssa_bench.engines.mujoco_adapter import _make_mujoco_env, _mujoco_env_id_candidates
 
@@ -275,6 +285,32 @@ def test_mujoco_expert_accepts_near_expert_action_inside_rollout_margin():
     assert 0.0 < score.details["score_gap"] <= score.details["rollout_margin"]
     assert engine.env.unwrapped.data.qpos.tolist() == [0.0, 0.0]
     assert engine.env.unwrapped.data.qvel.tolist() == [0.0, 0.0]
+
+
+def test_mujoco_expert_samples_random_action_sequences():
+    from nyssa_bench.experts.base import MuJoCoHeuristicExpertProvider
+
+    task = Suite.load("mujoco_control_v0").tasks[0]
+    expert = MuJoCoHeuristicExpertProvider(rollout_margin=0.25, rollout_horizon=2, candidate_count=4, random_seed=123)
+    engine = _FakeMuJoCoEngine()
+    observation = {
+        "raw": [1.0, -1.0],
+        "action_space": {
+            "type": "box",
+            "shape": [2],
+            "low": [-1.0, -1.0],
+            "high": [1.0, 1.0],
+        },
+    }
+
+    expert.reset(task=task, seed=5, engine=engine)
+    score = expert.score_action(observation, [1.0, 1.0], task=task, engine=engine)
+
+    assert score.details is not None
+    assert score.details["rollout_horizon"] == 2
+    assert score.details["candidate_count"] >= 4
+    assert expert.metadata()["candidate_count"] == 4
+    assert engine.env.unwrapped.data.qpos.tolist() == [0.0, 0.0]
 
 
 def test_runner_executes_action_chunks(tmp_path: Path):

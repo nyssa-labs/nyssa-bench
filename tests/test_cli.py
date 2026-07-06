@@ -104,6 +104,36 @@ def test_cli_run_and_export(tmp_path: Path):
     assert (tmp_path / "leaderboard.json").exists()
 
 
+def test_cli_run_filters_tasks(tmp_path: Path):
+    _register_cli_engine()
+    run_dir = tmp_path / "filtered_run"
+
+    assert (
+        main(
+            [
+                "run",
+                "--suite",
+                "warehouse_manipulation_v0",
+                "--tasks",
+                "pick_from_bin",
+                "--engine",
+                "cli_real",
+                "--policy",
+                "random",
+                "--episodes",
+                "1",
+                "--out",
+                str(run_dir),
+            ]
+        )
+        == 0
+    )
+
+    metrics = json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics["episodes"] == 1
+    assert set(metrics["per_task"]) == {"pick_from_bin"}
+
+
 def test_cli_robomimic_export_with_dataset_extra(tmp_path: Path):
     pytest.importorskip("h5py")
     import h5py
@@ -206,6 +236,41 @@ def test_cli_ablate_writes_variant_pack(tmp_path: Path):
     assert (out / "RESULTS.md").exists()
     assert (out / "base" / "seed_0" / "metrics.json").exists()
     assert (out / "verifier" / "seed_0" / "metrics.json").exists()
+
+
+def test_cli_ablate_filters_tasks(tmp_path: Path):
+    _register_cli_engine()
+    out = tmp_path / "filtered_ablation"
+
+    assert (
+        main(
+            [
+                "ablate",
+                "--suite",
+                "warehouse_manipulation_v0",
+                "--tasks",
+                "pick_from_bin",
+                "--engine",
+                "cli_real",
+                "--policy",
+                "random",
+                "--seeds",
+                "0",
+                "--episodes",
+                "1",
+                "--variants",
+                "base",
+                "--out",
+                str(out),
+                "--no-replay",
+            ]
+        )
+        == 0
+    )
+
+    metrics = json.loads((out / "base" / "seed_0" / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics["episodes"] == 1
+    assert set(metrics["per_task"]) == {"pick_from_bin"}
 
 
 def test_cli_train_bc_writes_checkpoint(tmp_path: Path):
