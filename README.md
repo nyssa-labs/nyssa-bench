@@ -228,6 +228,48 @@ Each recovery-aware run writes:
 - `failure_gallery.html`: representative failed episodes and replay links.
 - `metrics.json`: success, intervention, recovery, verifier, action-chunk, and compute metrics.
 
+Train the next BC checkpoint directly from one run directory or an entire
+ablation result root:
+
+```bash
+uv run nyssa train-recovery-bc \
+  benchmark_results/mujoco_ablation_smoke \
+  --out checkpoints/recovery_bc_policy.json \
+  --merged-out benchmark_results/mujoco_recovery_training/episodes.json
+
+NYSSA_BC_CHECKPOINT=checkpoints/recovery_bc_policy.json \
+uv run nyssa ablate \
+  --suite mujoco_control_v0 \
+  --engine mujoco \
+  --policy bc_policy \
+  --seeds 0 \
+  --episodes 5 \
+  --variants base verifier recovery verifier_recovery \
+  --expert-provider mujoco-heuristic \
+  --out benchmark_results/mujoco_recovery_bc_ablation_smoke \
+  --no-replay
+```
+
+For task-routed policies, emit one checkpoint per task under the existing
+`task_bc_policy` directory layout:
+
+```bash
+uv run nyssa train-recovery-bc \
+  benchmark_results/mujoco_ablation_smoke \
+  --by-task \
+  --out-dir checkpoints/bc_by_task
+
+NYSSA_TASK_BC_DIR=checkpoints/bc_by_task \
+uv run nyssa run \
+  --suite mujoco_control_v0 \
+  --engine mujoco \
+  --policy task_bc_policy \
+  --episodes 10 \
+  --seed 0 \
+  --out runs/mujoco_task_recovery_bc_smoke \
+  --no-replay
+```
+
 After smoke runs pass, scale to public-claim settings:
 
 ```bash

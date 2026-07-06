@@ -224,6 +224,65 @@ def test_cli_train_bc_writes_checkpoint(tmp_path: Path):
     assert out.exists()
 
 
+def test_cli_train_recovery_bc_from_ablation_root(tmp_path: Path):
+    root = tmp_path / "ablation"
+    recovery_dir = root / "verifier_recovery" / "seed_0" / "recovery_dataset"
+    recovery_dir.mkdir(parents=True)
+    recovery_dir.joinpath("episodes.json").write_text(
+        json.dumps(
+            [
+                {
+                    "task_id": "mujoco_reacher",
+                    "episode_index": 0,
+                    "seed": 0,
+                    "success": False,
+                    "failure_label": "low_reward",
+                    "steps": [
+                        {
+                            "step_index": 0,
+                            "observation": _observation(),
+                            "action": [0.4],
+                            "reward": 0.0,
+                            "terminated": False,
+                            "truncated": False,
+                            "info": {"expert_intervention": True},
+                        }
+                    ],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "recovery_bc_policy.json"
+    merged_out = tmp_path / "merged_recovery.json"
+
+    assert main(["train-recovery-bc", str(root), "--out", str(out), "--merged-out", str(merged_out)]) == 0
+    assert out.exists()
+    merged = json.loads(merged_out.read_text(encoding="utf-8"))
+    assert len(merged) == 1
+    assert merged[0]["task_id"] == "mujoco_reacher"
+
+
+def test_cli_train_recovery_bc_by_task(tmp_path: Path):
+    root = tmp_path / "run"
+    recovery_dir = root / "recovery_dataset"
+    recovery_dir.mkdir(parents=True)
+    recovery_dir.joinpath("episodes.json").write_text(
+        json.dumps(
+            [
+                {"task_id": "mujoco_reacher", "steps": [{"observation": _observation(), "action": [0.1]}]},
+                {"task_id": "maniskill_pick_cube_joint", "steps": [{"observation": _observation(), "action": [0.2]}]},
+            ]
+        ),
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "bc_by_task"
+
+    assert main(["train-recovery-bc", str(root), "--by-task", "--out-dir", str(out_dir)]) == 0
+    assert (out_dir / "mujoco_reacher.json").exists()
+    assert (out_dir / "maniskill_pick_cube.json").exists()
+
+
 def test_linear_bc_resizes_action_to_live_action_space():
     import numpy as np
 

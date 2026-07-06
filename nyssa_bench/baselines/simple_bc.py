@@ -123,10 +123,14 @@ def create_task_bc_policy() -> TaskRoutedLinearBCPolicy:
     return TaskRoutedLinearBCPolicy(checkpoint_dir)
 
 
-def _checkpoint_key(task_id: str) -> str:
+def task_checkpoint_key(task_id: str) -> str:
     aliases = {
         "maniskill_pick_cube_joint": "maniskill_pick_cube",
         "maniskill_stack_cube_joint": "maniskill_stack_cube",
         "maniskill_push_cube_joint": "maniskill_push_cube",
     }
     return aliases.get(task_id, task_id.removesuffix("_joint"))
+
+
+def _checkpoint_key(task_id: str) -> str:
+    return task_checkpoint_key(task_id)

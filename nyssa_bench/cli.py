@@ -18,6 +18,7 @@ from nyssa_bench.datasets.export_lerobot import export_lerobot
 from nyssa_bench.datasets.export_parquet import export_parquet
 from nyssa_bench.datasets.export_robomimic import export_robomimic_hdf5
 from nyssa_bench.datasets.import_maniskill import import_maniskill_demos
+from nyssa_bench.datasets.recovery_training import train_recovery_bc
 from nyssa_bench.reports.comparison import compare_runs, save_comparison_report, save_leaderboard
 from nyssa_bench.reports.html_report import Report
 from nyssa_bench.reports.result_pack import write_experiment_manifest, write_results_markdown
@@ -121,6 +122,16 @@ def main(argv: list[str] | None = None) -> int:
     train_bc_parser.add_argument("--out", default="checkpoints/bc_policy.json")
     train_bc_parser.add_argument("--feature-dim", type=int, default=256)
     train_bc_parser.add_argument("--ridge", type=float, default=1e-3)
+
+    train_recovery_bc_parser = subparsers.add_parser("train-recovery-bc")
+    train_recovery_bc_parser.add_argument("sources", nargs="+")
+    train_recovery_bc_parser.add_argument("--out", default="checkpoints/recovery_bc_policy.json")
+    train_recovery_bc_parser.add_argument("--by-task", action="store_true")
+    train_recovery_bc_parser.add_argument("--out-dir", default="checkpoints/bc_by_task")
+    train_recovery_bc_parser.add_argument("--merged-out")
+    train_recovery_bc_parser.add_argument("--feature-dim", type=int, default=256)
+    train_recovery_bc_parser.add_argument("--ridge", type=float, default=1e-3)
+    train_recovery_bc_parser.add_argument("--min-steps", type=int, default=1)
 
     train_robomimic_parser = subparsers.add_parser("train-robomimic")
     train_robomimic_parser.add_argument("--config", required=True)
@@ -265,6 +276,26 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "train-bc":
         out = _train_bc_from_episode_files(args.episodes, args.out, feature_dim=args.feature_dim, ridge=args.ridge)
         print(f"bc_checkpoint: {out}")
+        return 0
+
+    if args.command == "train-recovery-bc":
+        result = train_recovery_bc(
+            args.sources,
+            out=args.out,
+            by_task=args.by_task,
+            out_dir=args.out_dir,
+            merged_out=args.merged_out,
+            feature_dim=args.feature_dim,
+            ridge=args.ridge,
+            min_steps=args.min_steps,
+        )
+        print(f"recovery_sources: {len(result.source_paths)}")
+        print(f"recovery_episodes: {result.episodes}")
+        print(f"recovery_steps: {result.steps}")
+        if result.merged_path:
+            print(f"merged_recovery_episodes: {result.merged_path}")
+        for label, path in result.checkpoints.items():
+            print(f"bc_checkpoint[{label}]: {path}")
         return 0
 
     if args.command == "train-robomimic":
