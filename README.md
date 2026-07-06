@@ -250,6 +250,43 @@ uv run nyssa ablate \
   --no-replay
 ```
 
+Closed-loop MuJoCo recovery smoke:
+
+```bash
+uv run nyssa ablate \
+  --suite mujoco_control_v0 \
+  --engine mujoco \
+  --policy random \
+  --seeds 0 \
+  --episodes 20 \
+  --variants base verifier recovery verifier_recovery \
+  --expert-provider mujoco-heuristic \
+  --out benchmark_results/mujoco_recovery_collect_v0 \
+  --no-replay
+
+uv run nyssa train-recovery-bc \
+  benchmark_results/mujoco_recovery_collect_v0 \
+  --out checkpoints/recovery_bc_policy.json \
+  --merged-out benchmark_results/mujoco_recovery_training_v0/episodes.json
+
+NYSSA_BC_CHECKPOINT=checkpoints/recovery_bc_policy.json \
+uv run nyssa ablate \
+  --suite mujoco_control_v0 \
+  --engine mujoco \
+  --policy bc_policy \
+  --seeds 0 \
+  --episodes 20 \
+  --variants base verifier recovery verifier_recovery \
+  --expert-provider mujoco-heuristic \
+  --out benchmark_results/mujoco_recovery_bc_eval_v0 \
+  --no-replay
+
+uv run nyssa compare \
+  benchmark_results/mujoco_recovery_collect_v0/verifier_recovery/seed_0 \
+  benchmark_results/mujoco_recovery_bc_eval_v0/verifier_recovery/seed_0 \
+  --out reports/mujoco_recovery_bc_compare.html
+```
+
 For task-routed policies, emit one checkpoint per task under the existing
 `task_bc_policy` directory layout:
 
