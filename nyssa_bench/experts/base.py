@@ -197,16 +197,29 @@ class ManiSkillScriptedExpertProvider(ExpertProvider):
 
 
 class MuJoCoHeuristicExpertProvider(ExpertProvider):
-    """Simple MuJoCo low-dimensional controller used as expert/recovery scaffold."""
+    """MuJoCo heuristic expert with optional one-step rollout action scoring."""
 
     provider_id = "mujoco-heuristic"
 
-    def __init__(self, gain: float = 0.5, reject_idle_threshold: float = 1e-6) -> None:
+    def __init__(
+        self,
+        gain: float = 0.5,
+        reject_idle_threshold: float = 1e-6,
+        rollout_margin: float = 0.05,
+    ) -> None:
         self.gain = gain
         self.reject_idle_threshold = reject_idle_threshold
+        self.rollout_margin = rollout_margin
         self._bounds = BoundsVerifierExpertProvider()
 
     def act(self, observation: dict[str, Any], *, task: Any, engine: Any | None = None) -> Any | None:
+        if engine is not None:
+            candidate = self._best_rollout_candidate(observation, task=task, engine=engine)
+            if candidate is not None:
+                return candidate
+        return self._heuristic_action(observation)
+
+    def _heuristic_action(self, observation: dict[str, Any]) -> Any | None:
         low, high, shape = action_bounds(observation)
         size = int(_prod(shape))
         features = flatten_observation(observation, max_dim=max(size, 1))
@@ -253,10 +266,82 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
                 return ExpertActionScore(accepted=False, confidence=0.5, reason="idle_action_on_nonzero_state")
         except Exception:
             pass
+        score = self._rollout_score_against_candidates(observation, action, task=task, engine=engine)
+        if score is not None:
+            return score
         return ExpertActionScore(accepted=True, confidence=0.5, reason=None)
 
     def metadata(self) -> dict[str, Any]:
-        return {"provider_id": self.provider_id, "capabilities": ["act", "recover", "score_action"]}
+        return {
+            "provider_id": self.provider_id,
+            "capabilities": ["act", "recover", "score_action", "one_step_rollout_score"],
+            "rollout_margin": self.rollout_margin,
+        }
+
+    def _rollout_score_against_candidates(
+        self,
+        observation: dict[str, Any],
+        action: Any,
+        *,
+        task: Any,
+        engine: Any | None,
+    ) -> ExpertActionScore | None:
+        if engine is None:
+            return None
+        proposed_reward = _evaluate_mujoco_action(engine, action)
+        if proposed_reward is None:
+            return None
+        best_reward = proposed_reward
+        for candidate in self._candidate_actions(observation, include_zero=True):
+            reward = _evaluate_mujoco_action(engine, candidate)
+            if reward is not None:
+                best_reward = max(best_reward, reward)
+        if best_reward > proposed_reward + self.rollout_margin:
+            confidence = min(1.0, max(0.0, best_reward - proposed_reward))
+            return ExpertActionScore(
+                accepted=False,
+                confidence=confidence,
+                reason="lower_than_candidate_reward",
+            )
+        return ExpertActionScore(accepted=True, confidence=0.75, reason=None)
+
+    def _best_rollout_candidate(self, observation: dict[str, Any], *, task: Any, engine: Any) -> Any | None:
+        best_action = None
+        best_reward = None
+        for candidate in self._candidate_actions(observation, include_zero=True):
+            reward = _evaluate_mujoco_action(engine, candidate)
+            if reward is not None and (best_reward is None or reward > best_reward):
+                best_reward = reward
+                best_action = candidate
+        return best_action
+
+    def _candidate_actions(self, observation: dict[str, Any], *, include_zero: bool) -> list[Any]:
+        try:
+            import numpy as np
+
+            low, high, shape = action_bounds(observation)
+            heuristic = self._heuristic_action(observation)
+            candidates = []
+            if heuristic is not None:
+                heuristic_array = np.asarray(heuristic, dtype=float).reshape(shape)
+                candidates.append(heuristic_array)
+                candidates.append(np.clip(-heuristic_array, low, high))
+            if include_zero:
+                candidates.append(np.zeros(shape, dtype=float))
+            candidates.append(low)
+            candidates.append(high)
+            size = int(_prod(shape))
+            if size <= 4:
+                for mask in range(1 << size):
+                    corner = np.array(
+                        [high.reshape(-1)[idx] if (mask >> idx) & 1 else low.reshape(-1)[idx] for idx in range(size)],
+                        dtype=float,
+                    ).reshape(shape)
+                    candidates.append(corner)
+            return _unique_arrays(candidates)
+        except Exception:
+            fallback = self._heuristic_action(observation)
+            return [fallback] if fallback is not None else []
 
 
 def make_expert_provider(provider: str | Path | ExpertProvider | None) -> ExpertProvider:
@@ -308,3 +393,112 @@ def _prod(values: tuple[int, ...]) -> int:
     for value in values:
         total *= int(value)
     return total
+
+
+def _evaluate_mujoco_action(engine: Any, action: Any) -> float | None:
+    env = getattr(engine, "env", None)
+    if env is None:
+        return None
+    snapshot = _snapshot_mujoco_engine(engine)
+    if snapshot is None:
+        return None
+    try:
+        _, reward, _, _, _ = env.step(action)
+        return float(reward)
+    except Exception:
+        return None
+    finally:
+        _restore_mujoco_engine(engine, snapshot)
+
+
+def _snapshot_mujoco_engine(engine: Any) -> dict[str, Any] | None:
+    try:
+        import numpy as np
+
+        env = getattr(engine, "env", None)
+        unwrapped = getattr(env, "unwrapped", env)
+        data = getattr(unwrapped, "data", None)
+        if data is None:
+            return None
+        snapshot = {
+            "qpos": np.array(data.qpos, copy=True),
+            "qvel": np.array(data.qvel, copy=True),
+            "time": float(getattr(data, "time", 0.0)),
+            "engine_episode_return": getattr(engine, "episode_return", None),
+            "engine_elapsed_steps": getattr(engine, "elapsed_steps", None),
+            "elapsed_steps": _collect_wrapper_attr(env, "_elapsed_steps"),
+        }
+        return snapshot
+    except Exception:
+        return None
+
+
+def _restore_mujoco_engine(engine: Any, snapshot: dict[str, Any]) -> None:
+    try:
+        env = getattr(engine, "env", None)
+        unwrapped = getattr(env, "unwrapped", env)
+        if hasattr(unwrapped, "set_state"):
+            unwrapped.set_state(snapshot["qpos"], snapshot["qvel"])
+        else:
+            data = getattr(unwrapped, "data", None)
+            if data is not None:
+                data.qpos[:] = snapshot["qpos"]
+                data.qvel[:] = snapshot["qvel"]
+                if hasattr(data, "time"):
+                    data.time = snapshot["time"]
+        data = getattr(unwrapped, "data", None)
+        if data is not None and hasattr(data, "time"):
+            data.time = snapshot["time"]
+        model = getattr(unwrapped, "model", None)
+        if model is not None and data is not None:
+            try:
+                import mujoco
+
+                mujoco.mj_forward(model, data)
+            except Exception:
+                pass
+        _restore_wrapper_attr(env, "_elapsed_steps", snapshot.get("elapsed_steps", []))
+        if snapshot.get("engine_episode_return") is not None:
+            engine.episode_return = snapshot["engine_episode_return"]
+        if snapshot.get("engine_elapsed_steps") is not None:
+            engine.elapsed_steps = snapshot["engine_elapsed_steps"]
+    except Exception:
+        return None
+
+
+def _collect_wrapper_attr(env: Any, attr: str) -> list[tuple[Any, Any]]:
+    values = []
+    current = env
+    seen = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if hasattr(current, attr):
+            values.append((current, getattr(current, attr)))
+        current = getattr(current, "env", None)
+    return values
+
+
+def _restore_wrapper_attr(env: Any, attr: str, values: list[tuple[Any, Any]]) -> None:
+    del env
+    for wrapper, value in values:
+        try:
+            setattr(wrapper, attr, value)
+        except Exception:
+            pass
+
+
+def _unique_arrays(values: list[Any]) -> list[Any]:
+    try:
+        import numpy as np
+
+        unique = []
+        seen = set()
+        for value in values:
+            array = np.asarray(value, dtype=float)
+            key = tuple(array.reshape(-1).round(8).tolist())
+            if key not in seen:
+                seen.add(key)
+                unique.append(array)
+        return unique
+    except Exception:
+        return values

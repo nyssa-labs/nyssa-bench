@@ -145,6 +145,9 @@ def test_runner_records_expert_verifier_interventions(tmp_path: Path):
         def act(self, observation, *, task, engine=None):
             return 0.0
 
+        def recover(self, *, state, failure, task, engine=None):
+            return [0.0]
+
     suite = Suite.load("maniskill_smoke_v0")
     runner = PolicyRunner(
         policy="random",
@@ -154,12 +157,15 @@ def test_runner_records_expert_verifier_interventions(tmp_path: Path):
         out=tmp_path,
         expert_provider=RejectingExpert(),
         enable_verifier=True,
+        enable_recovery=True,
         capture_replay=False,
     )
     report = runner.evaluate(suite)
 
     assert report.summary["metrics"]["expert_intervention_rate"] == 1.0
     assert report.summary["metrics"]["verifier_rejection_rate"] == 1.0
+    assert report.summary["metrics"]["expert_intervention_rate"] <= 1.0
+    assert report.summary["metrics"]["recovery_success_rate"] == 1.0
     assert runner.run_metadata["expert_provider"]["provider_id"] == "rejecting_unit"
     episodes = (tmp_path / "episodes.jsonl").read_text(encoding="utf-8").splitlines()
     assert '"verifier_rejected": true' in episodes[0]
@@ -180,6 +186,33 @@ def test_builtin_expert_providers_emit_actions():
     scripted = make_expert_provider("maniskill-scripted")
     assert scripted.act(observation, task=task) is not None
     assert scripted.metadata()["provider_id"] == "maniskill-scripted"
+
+
+def test_mujoco_expert_uses_rollout_scoring_and_restores_state():
+    task = Suite.load("mujoco_control_v0").tasks[0]
+    expert = make_expert_provider("mujoco-heuristic")
+    engine = _FakeMuJoCoEngine()
+    observation = {
+        "raw": [1.0, -1.0],
+        "action_space": {
+            "type": "box",
+            "shape": [2],
+            "low": [-1.0, -1.0],
+            "high": [1.0, 1.0],
+        },
+    }
+
+    score = expert.score_action(observation, [1.0, 1.0], task=task, engine=engine)
+    recovery = expert.recover(state={"observation": observation}, failure="bad_action", task=task, engine=engine)
+
+    assert score.accepted is False
+    assert score.reason == "lower_than_candidate_reward"
+    assert recovery is not None
+    assert np.asarray(recovery[0]).tolist() == [-1.0, 1.0]
+    assert engine.env.unwrapped.data.qpos.tolist() == [0.0, 0.0]
+    assert engine.env.unwrapped.data.qvel.tolist() == [0.0, 0.0]
+    assert engine.elapsed_steps == 0
+    assert engine.episode_return == 0.0
 
 
 def test_runner_executes_action_chunks(tmp_path: Path):
@@ -228,6 +261,45 @@ def test_runner_executes_action_chunks(tmp_path: Path):
     assert report.summary["metrics"]["policy_cached_action_count"] == 1.0
     assert runner.episode_results[0].steps[0].info["policy_action_chunk_size"] == 2
     assert runner.episode_results[0].steps[1].info["policy_cached_action"] is True
+
+
+class _FakeMuJoCoData:
+    def __init__(self) -> None:
+        self.qpos = np.asarray([0.0, 0.0], dtype=float)
+        self.qvel = np.asarray([0.0, 0.0], dtype=float)
+        self.time = 0.0
+
+
+class _FakeMuJoCoUnwrapped:
+    def __init__(self) -> None:
+        self.data = _FakeMuJoCoData()
+        self.model = None
+
+    def set_state(self, qpos, qvel) -> None:
+        self.data.qpos[:] = qpos
+        self.data.qvel[:] = qvel
+
+
+class _FakeMuJoCoEnv:
+    def __init__(self) -> None:
+        self.unwrapped = _FakeMuJoCoUnwrapped()
+        self._elapsed_steps = 0
+
+    def step(self, action):
+        action_array = np.asarray(action, dtype=float).reshape(-1)
+        self.unwrapped.data.qpos += action_array
+        self.unwrapped.data.qvel[:] = action_array
+        self.unwrapped.data.time += 1.0
+        self._elapsed_steps += 1
+        reward = -float(np.linalg.norm(action_array - np.asarray([-1.0, 1.0])))
+        return {}, reward, False, False, {}
+
+
+class _FakeMuJoCoEngine:
+    def __init__(self) -> None:
+        self.env = _FakeMuJoCoEnv()
+        self.episode_return = 0.0
+        self.elapsed_steps = 0
 
 
 def test_public_claim_requires_replay_video_evidence(tmp_path: Path):

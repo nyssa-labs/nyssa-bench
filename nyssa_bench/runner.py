@@ -235,7 +235,8 @@ class PolicyRunner:
                 if recovery_plan:
                     action = recovery_plan[0]
                     pending_actions = []
-                    expert_intervention_count += 1
+                    if not expert_info["expert_intervention"]:
+                        expert_intervention_count += 1
                     expert_info["expert_intervention"] = True
                     expert_info["recovery_applied"] = True
             next_observation, reward, terminated, truncated, info = engine.step(action)
