@@ -8,7 +8,7 @@ objects:
     type: marker
 success:
   engine_env_ids:
-    mujoco: Reacher-v4
+    mujoco: Reacher-v5
   render_mode: rgb_array
   max_steps: 50
   success_metric: final_reward_threshold

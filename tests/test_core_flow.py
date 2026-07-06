@@ -88,7 +88,7 @@ def test_suite_loads_tasks():
     assert all(task.success["control_mode"] == "pd_joint_pos" for task in planner_bc.tasks)
 
     mujoco = Suite.load("mujoco_control_v0")
-    assert mujoco.tasks[0].success["engine_env_ids"]["mujoco"] == "Reacher-v4"
+    assert mujoco.tasks[0].success["engine_env_ids"]["mujoco"] == "Reacher-v5"
 
 
 def test_runner_writes_artifacts(tmp_path: Path):
