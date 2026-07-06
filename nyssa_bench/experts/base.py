@@ -213,6 +213,9 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         candidate_count: int | None = None,
         random_seed: int | None = None,
         pusher_shaping_scale: float | None = None,
+        adaptive_margin: str | None = None,
+        margin_fraction: float | None = None,
+        min_margin: float | None = None,
     ) -> None:
         self.gain = gain
         self.reject_idle_threshold = reject_idle_threshold
@@ -233,6 +236,15 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             if pusher_shaping_scale is not None
             else os.getenv("NYSSA_MUJOCO_PUSHER_SHAPING", "5.0")
         )
+        self.adaptive_margin = (
+            adaptive_margin if adaptive_margin is not None else os.getenv("NYSSA_MUJOCO_ADAPTIVE_MARGIN", "auto")
+        ).strip().lower()
+        if self.adaptive_margin not in {"auto", "off", "on"}:
+            raise ValueError("NYSSA_MUJOCO_ADAPTIVE_MARGIN must be one of: auto, on, off")
+        self.margin_fraction = float(
+            margin_fraction if margin_fraction is not None else os.getenv("NYSSA_MUJOCO_MARGIN_FRACTION", "0.25")
+        )
+        self.min_margin = float(min_margin if min_margin is not None else os.getenv("NYSSA_MUJOCO_MIN_MARGIN", "1e-6"))
         self._rng: Any | None = None
         self._bounds = BoundsVerifierExpertProvider()
 
@@ -312,6 +324,9 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             "rollout_horizon": self.rollout_horizon,
             "candidate_count": self.candidate_count,
             "pusher_shaping_scale": self.pusher_shaping_scale,
+            "adaptive_margin": self.adaptive_margin,
+            "margin_fraction": self.margin_fraction,
+            "min_margin": self.min_margin,
         }
 
     def _rollout_score_against_candidates(
@@ -334,6 +349,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             return None
         best_return = proposed_return
         best_index = None
+        candidate_returns = [proposed_return]
         candidates = self._candidate_action_sequences(observation, include_zero=True)
         for candidate_index, candidate_sequence in enumerate(candidates):
             candidate_return = _evaluate_mujoco_action_sequence(
@@ -342,22 +358,28 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
                 task=task,
                 pusher_shaping_scale=self.pusher_shaping_scale,
             )
-            if candidate_return is not None and candidate_return > best_return:
-                best_return = candidate_return
-                best_index = candidate_index
+            if candidate_return is not None:
+                candidate_returns.append(candidate_return)
+                if candidate_return > best_return:
+                    best_return = candidate_return
+                    best_index = candidate_index
         gap = best_return - proposed_return
+        effective_margin, adaptive_enabled, return_spread = self._effective_rollout_margin(task, candidate_returns)
         details = {
             "proposed_return": proposed_return,
             "best_candidate_return": best_return,
             "score_gap": gap,
             "rollout_margin": self.rollout_margin,
+            "effective_rollout_margin": effective_margin,
+            "adaptive_margin_enabled": adaptive_enabled,
+            "candidate_return_spread": return_spread,
             "rollout_horizon": self.rollout_horizon,
             "candidate_count": len(candidates),
             "best_candidate_index": best_index,
             "rollout_score_kind": _mujoco_rollout_score_kind(task),
             "pusher_shaping_scale": self.pusher_shaping_scale if _is_mujoco_pusher_task(task) else None,
         }
-        if gap > self.rollout_margin:
+        if gap > effective_margin:
             confidence = min(1.0, max(0.0, gap / max(1.0, abs(best_return), abs(proposed_return))))
             return ExpertActionScore(
                 accepted=False,
@@ -366,6 +388,18 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
                 details=details,
             )
         return ExpertActionScore(accepted=True, confidence=0.75, reason=None, details=details)
+
+    def _effective_rollout_margin(self, task: Any, returns: list[float]) -> tuple[float, bool, float | None]:
+        adaptive_enabled = self.adaptive_margin == "on" or (
+            self.adaptive_margin == "auto" and _is_mujoco_pusher_task(task)
+        )
+        if not adaptive_enabled or not returns:
+            return self.rollout_margin, False, None
+        return_spread = max(returns) - min(returns)
+        if return_spread <= 0.0:
+            return self.min_margin, True, return_spread
+        adaptive_margin = max(self.min_margin, return_spread * self.margin_fraction)
+        return min(self.rollout_margin, adaptive_margin), True, return_spread
 
     def _best_rollout_candidate(self, observation: dict[str, Any], *, task: Any, engine: Any) -> Any | None:
         best_action = None

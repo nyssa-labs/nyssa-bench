@@ -196,6 +196,8 @@ NYSSA_MUJOCO_ROLLOUT_HORIZON=3 \
 NYSSA_MUJOCO_ROLLOUT_MARGIN=0.25 \
 NYSSA_MUJOCO_CANDIDATES=32 \
 NYSSA_MUJOCO_PUSHER_SHAPING=5.0 \
+NYSSA_MUJOCO_ADAPTIVE_MARGIN=auto \
+NYSSA_MUJOCO_MARGIN_FRACTION=0.25 \
 uv run nyssa ablate ...
 ```
 
@@ -206,6 +208,9 @@ recovery action, which is most useful on higher-dimensional tasks such as
 `mujoco_pusher`. `NYSSA_MUJOCO_PUSHER_SHAPING` adds Pusher-specific terminal
 rollout shaping from object-goal and arm-object distances when those MuJoCo
 body positions are available.
+`NYSSA_MUJOCO_ADAPTIVE_MARGIN=auto` switches Pusher to a margin derived from
+the candidate return spread, which avoids fixed margins that are too large for
+small Pusher score gaps.
 
 The same hooks are available on `run` and `experiment`:
 
@@ -231,6 +236,8 @@ NYSSA_TASK_BC_MISSING=zero \
 NYSSA_MUJOCO_ROLLOUT_HORIZON=5 \
 NYSSA_MUJOCO_CANDIDATES=64 \
 NYSSA_MUJOCO_PUSHER_SHAPING=10.0 \
+NYSSA_MUJOCO_ADAPTIVE_MARGIN=auto \
+NYSSA_MUJOCO_MARGIN_FRACTION=0.25 \
 uv run nyssa ablate \
   --suite mujoco_control_v0 \
   --tasks mujoco_pusher \
