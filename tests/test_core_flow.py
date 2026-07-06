@@ -91,6 +91,39 @@ def test_suite_loads_tasks():
     assert mujoco.tasks[0].success["engine_env_ids"]["mujoco"] == "Reacher-v5"
 
 
+def test_mujoco_adapter_falls_back_to_available_gym_version():
+    from nyssa_bench.engines.mujoco_adapter import _make_mujoco_env, _mujoco_env_id_candidates
+
+    class VersionNotFound(Exception):
+        pass
+
+    class ErrorNamespace:
+        pass
+
+    ErrorNamespace.VersionNotFound = VersionNotFound
+
+    class FakeGym:
+        error = ErrorNamespace
+
+        def __init__(self) -> None:
+            self.requested: list[str] = []
+
+        def make(self, env_id: str, **kwargs: Any) -> dict[str, Any]:
+            self.requested.append(env_id)
+            if env_id == "Reacher-v5":
+                raise VersionNotFound(env_id)
+            return {"env_id": env_id, "kwargs": kwargs}
+
+    assert _mujoco_env_id_candidates("Reacher-v5") == ["Reacher-v5", "Reacher-v4", "Reacher-v2"]
+
+    gym = FakeGym()
+    env = _make_mujoco_env(gym, "Reacher-v5", {"render_mode": "rgb_array"})
+
+    assert env["env_id"] == "Reacher-v4"
+    assert env["kwargs"] == {"render_mode": "rgb_array"}
+    assert gym.requested == ["Reacher-v5", "Reacher-v4"]
+
+
 def test_runner_writes_artifacts(tmp_path: Path):
     _register_unit_engine()
     suite = Suite.load("tabletop_manipulation_v0")

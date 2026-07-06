@@ -28,7 +28,7 @@ class MuJoCoEngine(NyssaEngine):
 
         env_id = _resolve_env_id(task_spec, "mujoco")
         env_kwargs = {"render_mode": task_spec.success.get("render_mode", "rgb_array")}
-        self.env = gym.make(env_id, **env_kwargs)
+        self.env = _make_mujoco_env(gym, env_id, env_kwargs)
 
     def reset(self, seed: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
         self._require_env()
@@ -104,6 +104,73 @@ def _resolve_env_id(task_spec: TaskSpec, engine: str) -> str:
         f"Task '{task_spec.task_id}' is missing success.engine_env_ids.{engine}. "
         "Real simulator tasks must define explicit environment mappings."
     )
+
+
+def _make_mujoco_env(gym: Any, env_id: str, env_kwargs: dict[str, Any]) -> Any:
+    errors: list[BaseException] = []
+    for candidate in _mujoco_env_id_candidates(env_id):
+        try:
+            return gym.make(candidate, **env_kwargs)
+        except Exception as exc:
+            if not _is_missing_gym_env_error(gym, exc):
+                raise
+            errors.append(exc)
+
+    tried = ", ".join(_mujoco_env_id_candidates(env_id))
+    cause = errors[-1] if errors else None
+    raise RuntimeError(
+        f"Could not create MuJoCo environment for '{env_id}'. Tried: {tried}. "
+        "Install a Gymnasium/MuJoCo version that provides one of these environment IDs."
+    ) from cause
+
+
+def _mujoco_env_id_candidates(env_id: str) -> list[str]:
+    fallback_versions = {
+        "Reacher": ["v5", "v4", "v2"],
+        "Pusher": ["v5", "v4", "v2"],
+        "InvertedPendulum": ["v5", "v4", "v2"],
+    }
+    if "-" not in env_id:
+        return [env_id]
+
+    name, _, version = env_id.rpartition("-")
+    versions = fallback_versions.get(name)
+    if not versions:
+        return [env_id]
+
+    requested_version = _gym_env_version_number(version)
+    candidates = [env_id]
+    for fallback_version in versions:
+        candidate = f"{name}-{fallback_version}"
+        fallback_number = _gym_env_version_number(fallback_version)
+        if candidate not in candidates and (
+            requested_version is None or fallback_number is None or fallback_number <= requested_version
+        ):
+            candidates.append(candidate)
+    return candidates
+
+
+def _gym_env_version_number(version: str) -> int | None:
+    if not version.startswith("v"):
+        return None
+    try:
+        return int(version[1:])
+    except ValueError:
+        return None
+
+
+def _is_missing_gym_env_error(gym: Any, exc: BaseException) -> bool:
+    error_module = getattr(gym, "error", None)
+    missing_error_types = tuple(
+        error_type
+        for error_type in (
+            getattr(error_module, "VersionNotFound", None),
+            getattr(error_module, "NameNotFound", None),
+            getattr(error_module, "NamespaceNotFound", None),
+        )
+        if isinstance(error_type, type)
+    )
+    return bool(missing_error_types) and isinstance(exc, missing_error_types)
 
 
 def _extract_success(
