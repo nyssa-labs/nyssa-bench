@@ -91,6 +91,10 @@ NyssaBench benchmark claims require MP4 replay evidence for every episode.
 If `vulkaninfo --summary` reports only `llvmpipe`, the machine is using CPU
 Vulkan. Install the NVIDIA Vulkan ICD/GL packages that match the host driver,
 for example `nvidia-utils-535` and `libnvidia-gl-535` on driver branch 535.
+MuJoCo `rgb_array` replay on headless Linux defaults to EGL when `DISPLAY` is
+missing, which avoids GLFW/X11 crashes in Colab-style sessions. If your machine
+requires a specific backend, set `MUJOCO_GL=egl` or `MUJOCO_GL=osmesa` before
+launching `nyssa`.
 
 On macOS, MuJoCo smoke runs usually need the Python extras plus native GLFW:
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from nyssa_bench.core.task import TaskSpec
@@ -20,6 +21,8 @@ class MuJoCoEngine(NyssaEngine):
     def load_task(self, task_spec: TaskSpec) -> None:
         self.task_spec = task_spec
         self.max_steps = int(task_spec.success.get("max_steps", self.max_steps))
+        render_mode = task_spec.success.get("render_mode", "rgb_array")
+        _configure_headless_mujoco_rendering(render_mode)
         try:
             import gymnasium as gym
             import mujoco  # noqa: F401
@@ -27,7 +30,7 @@ class MuJoCoEngine(NyssaEngine):
             raise RuntimeError("Install NyssaBench with the MuJoCo extra: pip install -e '.[mujoco]'") from exc
 
         env_id = _resolve_env_id(task_spec, "mujoco")
-        env_kwargs = {"render_mode": task_spec.success.get("render_mode", "rgb_array")}
+        env_kwargs = {"render_mode": render_mode}
         self.env = _make_mujoco_env(gym, env_id, env_kwargs)
 
     def reset(self, seed: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -104,6 +107,15 @@ def _resolve_env_id(task_spec: TaskSpec, engine: str) -> str:
         f"Task '{task_spec.task_id}' is missing success.engine_env_ids.{engine}. "
         "Real simulator tasks must define explicit environment mappings."
     )
+
+
+def _configure_headless_mujoco_rendering(render_mode: Any) -> None:
+    if str(render_mode) != "rgb_array":
+        return
+    if os.name == "nt" or os.environ.get("DISPLAY") or os.environ.get("MUJOCO_GL"):
+        return
+    os.environ["MUJOCO_GL"] = "egl"
+    os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
 
 
 def _make_mujoco_env(gym: Any, env_id: str, env_kwargs: dict[str, Any]) -> Any:

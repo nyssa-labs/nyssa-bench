@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Any
 
@@ -132,6 +133,35 @@ def test_mujoco_adapter_falls_back_to_available_gym_version():
     assert env["env_id"] == "Reacher-v4"
     assert env["kwargs"] == {"render_mode": "rgb_array"}
     assert gym.requested == ["Reacher-v5", "Reacher-v4"]
+
+
+def test_mujoco_adapter_defaults_to_egl_for_headless_rgb_rendering(monkeypatch):
+    from nyssa_bench.engines.mujoco_adapter import _configure_headless_mujoco_rendering
+
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("MUJOCO_GL", raising=False)
+    monkeypatch.delenv("PYOPENGL_PLATFORM", raising=False)
+
+    _configure_headless_mujoco_rendering("rgb_array")
+
+    if os.name == "nt":
+        assert "MUJOCO_GL" not in os.environ
+    else:
+        assert os.environ["MUJOCO_GL"] == "egl"
+        assert os.environ["PYOPENGL_PLATFORM"] == "egl"
+
+
+def test_mujoco_adapter_respects_explicit_renderer(monkeypatch):
+    from nyssa_bench.engines.mujoco_adapter import _configure_headless_mujoco_rendering
+
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.setenv("MUJOCO_GL", "osmesa")
+    monkeypatch.delenv("PYOPENGL_PLATFORM", raising=False)
+
+    _configure_headless_mujoco_rendering("rgb_array")
+
+    assert os.environ["MUJOCO_GL"] == "osmesa"
+    assert "PYOPENGL_PLATFORM" not in os.environ
 
 
 def test_runner_writes_artifacts(tmp_path: Path):
