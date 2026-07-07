@@ -214,6 +214,62 @@ def test_runner_records_expert_verifier_interventions(tmp_path: Path):
     assert '"verifier_rejected": true' in episodes[0]
 
 
+def test_runner_executes_recovery_macro_plan(tmp_path: Path):
+    class MacroRecoveryEngine(UnitEngine):
+        max_steps = 3
+
+        def reset(self, seed: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
+            self.actions = []
+            return _observation(), {"seed": seed}
+
+        def step(self, action: Any) -> tuple[dict[str, Any], float, bool, bool, dict[str, Any]]:
+            value = float(np.asarray(action, dtype=float).reshape(-1)[0])
+            self.actions.append(value)
+            success = len(self.actions) >= 2 and self.actions[:2] == [0.25, 0.75]
+            return _observation(), 1.0, success, False, {
+                "success": success,
+                "completion_time": float(len(self.actions)),
+                "path_efficiency": 1.0,
+                "grasp_success": success,
+            }
+
+    class MacroRecoveryExpert(ExpertProvider):
+        provider_id = "macro_recovery"
+
+        def score_action(self, observation, action, *, task, engine=None):
+            return ExpertActionScore(accepted=False, confidence=1.0, reason="needs_macro")
+
+        def act(self, observation, *, task, engine=None):
+            return 0.0
+
+        def recover(self, *, state, failure, task, engine=None):
+            self.last_recovery_details = {"recovery_plan_label": "unit_macro"}
+            return [0.25, 0.75]
+
+    get_plugin_registry().engines["macro_recovery_unit"] = MacroRecoveryEngine
+    suite = Suite.load("maniskill_smoke_v0")
+    runner = PolicyRunner(
+        policy="random",
+        engine="macro_recovery_unit",
+        episodes=1,
+        seed=123,
+        out=tmp_path,
+        expert_provider=MacroRecoveryExpert(),
+        enable_verifier=True,
+        enable_recovery=True,
+        capture_replay=False,
+    )
+
+    report = runner.evaluate(suite)
+
+    assert report.summary["success_rate"] == 1.0
+    assert report.summary["metrics"]["recovery_cached_action_count"] == 1.0
+    assert report.summary["metrics"]["recovery_plan_action_count"] == 2.0
+    episode = (tmp_path / "episodes.json").read_text(encoding="utf-8")
+    assert '"action_source": "recovery"' in episode
+    assert '"recovery_plan_label": "unit_macro"' in episode
+
+
 def test_builtin_expert_providers_emit_actions():
     task = Suite.load("maniskill_smoke_v0").tasks[0]
     observation = _observation()

@@ -24,6 +24,13 @@ class ExpertActionScore:
         }
 
 
+@dataclass(frozen=True)
+class _RolloutPlan:
+    label: str
+    sequence: list[Any]
+    details: dict[str, Any] | None = None
+
+
 class ExpertProvider:
     """Interface for planner, MPC, scripted, or learned expert assistance."""
 
@@ -264,6 +271,8 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         self.min_margin = float(min_margin if min_margin is not None else os.getenv("NYSSA_MUJOCO_MIN_MARGIN", "1e-6"))
         self._rng: Any | None = None
         self._bounds = BoundsVerifierExpertProvider()
+        self.last_plan_details: dict[str, Any] | None = None
+        self.last_recovery_details: dict[str, Any] | None = None
 
     def reset(self, *, task: Any | None = None, seed: int | None = None, engine: Any | None = None) -> None:
         del task, engine
@@ -276,9 +285,10 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
 
     def act(self, observation: dict[str, Any], *, task: Any, engine: Any | None = None) -> Any | None:
         if engine is not None:
-            candidate = self._best_rollout_candidate(observation, task=task, engine=engine)
-            if candidate is not None:
-                return candidate
+            plan = self._best_rollout_plan(observation, task=task, engine=engine)
+            if plan is not None and plan.sequence:
+                self.last_plan_details = plan.details
+                return plan.sequence[0]
         return self._heuristic_action(observation)
 
     def _heuristic_action(self, observation: dict[str, Any]) -> Any | None:
@@ -305,8 +315,24 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         observation = state.get("observation")
         if not isinstance(observation, dict):
             return None
-        action = self.act(observation, task=task, engine=engine)
-        return [action] if action is not None else None
+        if engine is not None:
+            plan = self._best_rollout_plan(observation, task=task, engine=engine)
+            if plan is not None and plan.sequence:
+                self.last_recovery_details = {
+                    **plan.details,
+                    "failure": failure,
+                    "recovery_plan_length": len(plan.sequence),
+                }
+                return plan.sequence
+        action = self._heuristic_action(observation)
+        if action is None:
+            return None
+        self.last_recovery_details = {
+            "failure": failure,
+            "recovery_plan_label": "heuristic_fallback",
+            "recovery_plan_length": 1,
+        }
+        return [action]
 
     def score_action(
         self,
@@ -374,12 +400,13 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             return None
         best_return = proposed_return
         best_index = None
+        best_label = None
         candidate_returns = [proposed_return]
-        candidates = self._candidate_action_sequences(observation, include_zero=True, task=task, engine=engine)
-        for candidate_index, candidate_sequence in enumerate(candidates):
+        candidate_plans = self._candidate_rollout_plans(observation, include_zero=True, task=task, engine=engine)
+        for candidate_index, candidate_plan in enumerate(candidate_plans):
             candidate_return = _evaluate_mujoco_action_sequence(
                 engine,
-                candidate_sequence,
+                candidate_plan.sequence,
                 task=task,
                 pusher_shaping_scale=self.pusher_shaping_scale,
             )
@@ -388,6 +415,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
                 if candidate_return > best_return:
                     best_return = candidate_return
                     best_index = candidate_index
+                    best_label = candidate_plan.label
         gap = best_return - proposed_return
         effective_margin, margin_details = self._effective_rollout_margin(task, candidate_returns)
         details = {
@@ -398,8 +426,9 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             "effective_rollout_margin": effective_margin,
             **margin_details,
             "rollout_horizon": self.rollout_horizon,
-            "candidate_count": len(candidates),
+            "candidate_count": len(candidate_plans),
             "best_candidate_index": best_index,
+            "best_candidate_label": best_label if best_index is not None else None,
             "rollout_score_kind": _mujoco_rollout_score_kind(task),
             "pusher_shaping_scale": self.pusher_shaping_scale if _is_mujoco_pusher_task(task) else None,
         }
@@ -446,25 +475,40 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             "margin_top_k": self.margin_top_k,
         }
 
-    def _best_rollout_candidate(self, observation: dict[str, Any], *, task: Any, engine: Any) -> Any | None:
-        best_action = None
+    def _best_rollout_plan(self, observation: dict[str, Any], *, task: Any, engine: Any) -> _RolloutPlan | None:
+        best_plan = None
         best_return = None
-        for candidate_sequence in self._candidate_action_sequences(
+        best_index = None
+        for candidate_index, candidate_plan in enumerate(
+            self._candidate_rollout_plans(
             observation,
             include_zero=True,
             task=task,
             engine=engine,
+            )
         ):
             candidate_return = _evaluate_mujoco_action_sequence(
                 engine,
-                candidate_sequence,
+                candidate_plan.sequence,
                 task=task,
                 pusher_shaping_scale=self.pusher_shaping_scale,
             )
             if candidate_return is not None and (best_return is None or candidate_return > best_return):
                 best_return = candidate_return
-                best_action = candidate_sequence[0] if candidate_sequence else None
-        return best_action
+                best_plan = candidate_plan
+                best_index = candidate_index
+        if best_plan is None:
+            return None
+        details = {
+            "recovery_plan_label": best_plan.label,
+            "recovery_plan_return": best_return,
+            "recovery_plan_index": best_index,
+            "recovery_plan_length": len(best_plan.sequence),
+            "rollout_horizon": self.rollout_horizon,
+            "rollout_score_kind": _mujoco_rollout_score_kind(task),
+            "pusher_shaping_scale": self.pusher_shaping_scale if _is_mujoco_pusher_task(task) else None,
+        }
+        return _RolloutPlan(best_plan.label, best_plan.sequence.copy(), details)
 
     def _candidate_action_sequences(
         self,
@@ -474,13 +518,40 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         task: Any | None = None,
         engine: Any | None = None,
     ) -> list[list[Any]]:
-        candidates = [
-            [candidate] * self.rollout_horizon
-            for candidate in self._candidate_actions(observation, include_zero=include_zero)
+        return [
+            plan.sequence
+            for plan in self._candidate_rollout_plans(
+                observation,
+                include_zero=include_zero,
+                task=task,
+                engine=engine,
+            )
         ]
-        candidates.extend(self._pusher_guided_action_sequences(observation, task=task, engine=engine))
-        candidates.extend(self._random_action_sequences(observation))
-        return candidates
+
+    def _candidate_rollout_plans(
+        self,
+        observation: dict[str, Any],
+        *,
+        include_zero: bool,
+        task: Any | None = None,
+        engine: Any | None = None,
+    ) -> list[_RolloutPlan]:
+        plans = [
+            _RolloutPlan(f"single_action_{index}", [candidate] * self.rollout_horizon)
+            for index, candidate in enumerate(self._candidate_actions(observation, include_zero=include_zero))
+        ]
+        pusher_labels = [
+            "pusher_approach",
+            "pusher_push",
+            "pusher_approach_then_push",
+            "pusher_alternating_approach_push",
+        ]
+        for index, sequence in enumerate(self._pusher_guided_action_sequences(observation, task=task, engine=engine)):
+            label = pusher_labels[index] if index < len(pusher_labels) else f"pusher_guided_{index}"
+            plans.append(_RolloutPlan(label, sequence))
+        for index, sequence in enumerate(self._random_action_sequences(observation)):
+            plans.append(_RolloutPlan(f"random_shooting_{index}", sequence))
+        return plans
 
     def _pusher_guided_action_sequences(
         self,
@@ -554,15 +625,28 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
                     engine,
                     action.reshape(shape),
                     ("tips_arm", "fingertip", "tip", "end_effector"),
+                    repeat_steps=self.rollout_horizon,
                 )
                 if moved_tip is None:
                     columns.append(np.zeros(2, dtype=float))
                 else:
                     columns.append((np.asarray(moved_tip[:2], dtype=float) - np.asarray(base_tip[:2], dtype=float)) / eps[index])
             jacobian = np.stack(columns, axis=1)
-            if not np.any(np.abs(jacobian) > 1e-10):
+            column_norms = np.linalg.norm(jacobian, axis=0)
+            max_column_norm = float(np.max(column_norms)) if column_norms.size else 0.0
+            if max_column_norm <= 1e-10:
                 return None
-            solution, *_ = np.linalg.lstsq(jacobian, desired, rcond=None)
+            active = column_norms >= max(1e-6, 0.05 * max_column_norm)
+            active_jacobian = jacobian[:, active]
+            damping = 1e-2
+            lhs = active_jacobian.T @ active_jacobian + damping * np.eye(active_jacobian.shape[1])
+            rhs = active_jacobian.T @ desired
+            active_solution = np.linalg.solve(lhs, rhs)
+            solution = np.zeros(size, dtype=float)
+            solution[active] = active_solution
+            max_abs = float(np.max(np.abs(solution))) if solution.size else 0.0
+            if max_abs > 1.0:
+                solution = solution / max_abs
             return np.clip(solution.reshape(shape), low, high)
         except Exception:
             return None
@@ -682,6 +766,7 @@ def _evaluate_mujoco_action_sequence(
     snapshot = _snapshot_mujoco_engine(engine)
     if snapshot is None:
         return None
+    initial_pusher_geometry = _mujoco_pusher_geometry(engine) if _is_mujoco_pusher_task(task) else None
     try:
         total_reward = 0.0
         for action in actions:
@@ -689,7 +774,12 @@ def _evaluate_mujoco_action_sequence(
             total_reward += float(reward)
             if terminated or truncated:
                 break
-        shaping = _mujoco_terminal_shaping(engine, task=task, pusher_shaping_scale=pusher_shaping_scale)
+        shaping = _mujoco_terminal_shaping(
+            engine,
+            task=task,
+            pusher_shaping_scale=pusher_shaping_scale,
+            initial_geometry=initial_pusher_geometry,
+        )
         if shaping is not None:
             total_reward += shaping
         return total_reward
@@ -699,7 +789,13 @@ def _evaluate_mujoco_action_sequence(
         _restore_mujoco_engine(engine, snapshot)
 
 
-def _evaluate_mujoco_terminal_body_com(engine: Any, action: Any, body_names: tuple[str, ...]) -> Any | None:
+def _evaluate_mujoco_terminal_body_com(
+    engine: Any,
+    action: Any,
+    body_names: tuple[str, ...],
+    *,
+    repeat_steps: int = 1,
+) -> Any | None:
     env = getattr(engine, "env", None)
     if env is None:
         return None
@@ -707,7 +803,10 @@ def _evaluate_mujoco_terminal_body_com(engine: Any, action: Any, body_names: tup
     if snapshot is None:
         return None
     try:
-        env.step(action)
+        for _ in range(max(1, int(repeat_steps))):
+            _, _, terminated, truncated, _ = env.step(action)
+            if terminated or truncated:
+                break
         return _first_body_com(engine, body_names)
     except Exception:
         return None
@@ -715,9 +814,37 @@ def _evaluate_mujoco_terminal_body_com(engine: Any, action: Any, body_names: tup
         _restore_mujoco_engine(engine, snapshot)
 
 
-def _mujoco_terminal_shaping(engine: Any, *, task: Any | None, pusher_shaping_scale: float) -> float | None:
+def _mujoco_terminal_shaping(
+    engine: Any,
+    *,
+    task: Any | None,
+    pusher_shaping_scale: float,
+    initial_geometry: dict[str, float] | None = None,
+) -> float | None:
     if not _is_mujoco_pusher_task(task) or pusher_shaping_scale <= 0.0:
         return None
+    try:
+        terminal_geometry = _mujoco_pusher_geometry(engine)
+        if terminal_geometry is None:
+            return None
+        goal_distance = terminal_geometry["goal_distance"]
+        arm_distance = terminal_geometry["arm_distance"]
+        goal_progress = 0.0
+        arm_progress = 0.0
+        if initial_geometry is not None:
+            goal_progress = initial_geometry["goal_distance"] - goal_distance
+            arm_progress = initial_geometry["arm_distance"] - arm_distance
+        return pusher_shaping_scale * (
+            -goal_distance
+            - 0.2 * arm_distance
+            + 8.0 * goal_progress
+            + 4.0 * arm_progress
+        )
+    except Exception:
+        return None
+
+
+def _mujoco_pusher_geometry(engine: Any) -> dict[str, float] | None:
     try:
         import numpy as np
 
@@ -728,7 +855,10 @@ def _mujoco_terminal_shaping(engine: Any, *, task: Any | None, pusher_shaping_sc
             return None
         goal_distance = float(np.linalg.norm(object_pos[:2] - goal_pos[:2]))
         arm_distance = float(np.linalg.norm(arm_pos[:2] - object_pos[:2])) if arm_pos is not None else 0.0
-        return pusher_shaping_scale * (-(goal_distance + 0.1 * arm_distance))
+        return {
+            "goal_distance": goal_distance,
+            "arm_distance": arm_distance,
+        }
     except Exception:
         return None
 
@@ -741,7 +871,13 @@ def _first_body_com(engine: Any, names: tuple[str, ...]) -> Any | None:
         return None
     for name in names:
         try:
-            return getter(name)
+            position = getter(name)
+            try:
+                import numpy as np
+
+                return np.array(position, copy=True)
+            except Exception:
+                return position
         except Exception:
             continue
     return None

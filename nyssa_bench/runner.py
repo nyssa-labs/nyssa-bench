@@ -180,7 +180,10 @@ class PolicyRunner:
         verifier_rejection_count = 0
         policy_action_chunk_count = 0
         policy_cached_action_count = 0
+        recovery_plan_action_count = 0
+        recovery_cached_action_count = 0
         pending_actions: list[Any] = []
+        pending_action_source: str | None = None
         step_limit = self.max_steps or getattr(engine, "max_steps", 1000)
         if self.out and self.capture_replay:
             frame = _safe_render(engine)
@@ -190,7 +193,13 @@ class PolicyRunner:
         for _ in range(step_limit):
             if pending_actions:
                 action = pending_actions.pop(0)
-                policy_cached_action_count += 1
+                action_source = pending_action_source or "pending"
+                if action_source == "policy":
+                    policy_cached_action_count += 1
+                elif action_source == "recovery":
+                    recovery_cached_action_count += 1
+                if not pending_actions:
+                    pending_action_source = None
                 chunk_size = 0
             else:
                 raw_action = policy.act(observation)
@@ -199,6 +208,8 @@ class PolicyRunner:
                     action_horizon=self.policy_action_horizon,
                     execution_horizon=self.policy_execution_horizon,
                 )
+                action_source = "policy"
+                pending_action_source = "policy" if pending_actions else None
                 if chunk_size > 1:
                     policy_action_chunk_count += 1
             expert_info: dict[str, Any] = {
@@ -209,9 +220,11 @@ class PolicyRunner:
                 "recovery_success": False,
                 "verifier_rejected": False,
                 "policy_action_chunk_size": chunk_size,
-                "policy_cached_action": chunk_size == 0,
+                "policy_cached_action": chunk_size == 0 and action_source == "policy",
+                "recovery_cached_action": action_source == "recovery",
+                "action_source": action_source,
             }
-            if self.enable_verifier:
+            if self.enable_verifier and action_source != "recovery":
                 score = expert_provider.score_action(observation, action, task=task, engine=engine)
                 expert_info["verifier"] = score.to_dict()
                 if not score.accepted:
@@ -221,8 +234,10 @@ class PolicyRunner:
                     if expert_action is not None:
                         action = expert_action
                         pending_actions = []
+                        pending_action_source = None
                         expert_intervention_count += 1
                         expert_info["expert_intervention"] = True
+                        expert_info["action_source"] = "expert"
             if self.enable_recovery and expert_info["verifier_rejected"]:
                 recovery_attempt_count += 1
                 expert_info["recovery_attempted"] = True
@@ -233,12 +248,21 @@ class PolicyRunner:
                     engine=engine,
                 )
                 if recovery_plan:
+                    recovery_plan = list(recovery_plan)
                     action = recovery_plan[0]
-                    pending_actions = []
+                    pending_actions = recovery_plan[1:]
+                    pending_action_source = "recovery" if pending_actions else None
+                    recovery_plan_action_count += len(recovery_plan)
                     if not expert_info["expert_intervention"]:
                         expert_intervention_count += 1
                     expert_info["expert_intervention"] = True
                     expert_info["recovery_applied"] = True
+                    expert_info["action_source"] = "recovery"
+                    expert_info["recovery_plan_length"] = len(recovery_plan)
+                    expert_info["recovery_plan_pending_count"] = len(pending_actions)
+                    recovery_details = getattr(expert_provider, "last_recovery_details", None)
+                    if isinstance(recovery_details, dict):
+                        expert_info["recovery_plan"] = recovery_details
             next_observation, reward, terminated, truncated, info = engine.step(action)
             info = {**info, **expert_info}
             if self.out and self.capture_replay:
@@ -285,6 +309,9 @@ class PolicyRunner:
             "policy_action_chunk_count": float(policy_action_chunk_count),
             "policy_cached_action_count": float(policy_cached_action_count),
             "policy_cached_action_rate": float(policy_cached_action_count / len(steps)) if steps else 0.0,
+            "recovery_plan_action_count": float(recovery_plan_action_count),
+            "recovery_cached_action_count": float(recovery_cached_action_count),
+            "recovery_cached_action_rate": float(recovery_cached_action_count / len(steps)) if steps else 0.0,
             "drop_rate": 1.0 if failure_label == "object_slip" else 0.0,
             **safety_metrics({**last_info, "failure_label": failure_label}),
             **robustness_metrics({**last_info, "failure_label": failure_label}),
