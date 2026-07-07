@@ -408,6 +408,22 @@ def test_mujoco_pusher_expert_uses_task_shaped_rollout_score():
     assert engine.env.unwrapped.data.qpos.tolist() == [0.0, 0.0]
 
 
+def test_mujoco_rollout_score_prioritizes_success_threshold():
+    from nyssa_bench.experts.base import _evaluate_mujoco_action_sequence
+
+    task = Suite.load("mujoco_control_v0").filter_tasks(["mujoco_pusher"]).tasks[0]
+    engine = _FakeMuJoCoEngine()
+
+    success_score = _evaluate_mujoco_action_sequence(engine, [[-1.0, 1.0]], task=task)
+    miss_score = _evaluate_mujoco_action_sequence(engine, [[-0.4, 0.4]], task=task)
+
+    assert success_score is not None
+    assert miss_score is not None
+    assert success_score > miss_score + 50.0
+    assert engine.env.unwrapped.data.qpos.tolist() == [0.0, 0.0]
+    assert engine.env.unwrapped.data.qvel.tolist() == [0.0, 0.0]
+
+
 def test_mujoco_pusher_adaptive_margin_tracks_candidate_spread():
     from nyssa_bench.experts.base import MuJoCoHeuristicExpertProvider
 

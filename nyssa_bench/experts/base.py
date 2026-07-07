@@ -843,9 +843,13 @@ def _evaluate_mujoco_action_sequence(
     initial_pusher_geometry = _mujoco_pusher_geometry(engine) if _is_mujoco_pusher_task(task) else None
     try:
         total_reward = 0.0
+        final_reward = None
+        final_info: dict[str, Any] = {}
         for action in actions:
-            _, reward, terminated, truncated, _ = env.step(action)
-            total_reward += float(reward)
+            _, reward, terminated, truncated, info = env.step(action)
+            final_reward = float(reward)
+            final_info = dict(info)
+            total_reward += final_reward
             if terminated or truncated:
                 break
         shaping = _mujoco_terminal_shaping(
@@ -856,6 +860,9 @@ def _evaluate_mujoco_action_sequence(
         )
         if shaping is not None:
             total_reward += shaping
+        success_bonus = _mujoco_success_bonus(task, final_reward=final_reward, final_info=final_info)
+        if success_bonus:
+            total_reward += success_bonus
         return total_reward
     except Exception:
         return None
@@ -916,6 +923,22 @@ def _mujoco_terminal_shaping(
         )
     except Exception:
         return None
+
+
+def _mujoco_success_bonus(task: Any | None, *, final_reward: float | None, final_info: dict[str, Any]) -> float:
+    del final_info
+    success_config = getattr(task, "success", {}) if task is not None else {}
+    if not isinstance(success_config, dict):
+        return 0.0
+    metric = str(success_config.get("success_metric", "")).lower()
+    if metric not in {"reward_threshold", "final_reward_threshold"} and "reward_threshold" not in success_config:
+        return 0.0
+    if final_reward is None:
+        return 0.0
+    threshold = float(success_config.get("reward_threshold", 0.0))
+    if final_reward < threshold:
+        return 0.0
+    return 100.0
 
 
 def _mujoco_pusher_geometry(engine: Any) -> dict[str, float] | None:

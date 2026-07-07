@@ -217,6 +217,9 @@ but Pusher only commits sequential mixed plans by default so single-mode push or
 approach plans can replan every step.
 `NYSSA_MUJOCO_PUSHER_ACTION_SCALES` controls the guided action scales considered
 by the test-time planner, for example `0.5,1.0,1.5,2.0`.
+MuJoCo rollout scoring also gives a large bonus to candidates that cross a
+task's configured `reward_threshold`, so near-success states prefer actions
+that satisfy the benchmark predicate rather than only improving shaped progress.
 `NYSSA_MUJOCO_ADAPTIVE_MARGIN=auto` switches Pusher to a margin derived from
 the near-best candidate return spread, which avoids fixed margins that are too
 large for small Pusher score gaps. `NYSSA_MUJOCO_MARGIN_TOP_FRACTION` controls
