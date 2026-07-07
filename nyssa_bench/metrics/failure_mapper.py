@@ -25,6 +25,7 @@ class FailureMapper:
         *,
         task_spec: TaskSpec | None = None,
         step_count: int = 0,
+        terminated: bool = False,
         truncated: bool = False,
     ) -> FailureClassification:
         if bool(info.get("success", False)):
@@ -58,6 +59,9 @@ class FailureMapper:
 
         if _truthy_any(info, "out_of_distribution_layout", "ood_layout", "out_of_distribution"):
             return _classification("out_of_distribution_layout", configured, "mapper", "out-of-distribution event")
+
+        if terminated and "unstable_contact" in configured:
+            return FailureClassification("unstable_contact", "mapper", "environment terminated before success")
 
         max_steps = int((task_spec.success if task_spec is not None else {}).get("max_steps", 0) or 0)
         if truncated or bool(info.get("TimeLimit.truncated", False)) or (max_steps and step_count >= max_steps):

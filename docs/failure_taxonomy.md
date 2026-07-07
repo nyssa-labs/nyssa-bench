@@ -44,6 +44,7 @@ The current `FailureMapper` uses simple event-based rules:
 - planner stuck event -> `planner_stuck`
 - latency threshold event -> `latency_failure`
 - out-of-distribution layout event -> `out_of_distribution_layout`
+- failed early termination on tasks that configure contact instability -> `unstable_contact`
 - time limit or max-step truncation -> `timeout`
 - no success event with a configured target failure -> `missed_target`
 - no diagnostic event -> `unknown_failure`

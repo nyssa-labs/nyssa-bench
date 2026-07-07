@@ -863,3 +863,12 @@ def test_failure_mapper_does_not_default_to_first_label():
     )
     unknown = FailureMapper().classify({}, task_spec=unknown_task, step_count=0)
     assert unknown.label == "unknown_failure"
+
+
+def test_failure_mapper_labels_terminal_mujoco_instability():
+    task = Suite.load("mujoco_control_v0").filter_tasks(["mujoco_inverted_pendulum"]).tasks[0]
+
+    classification = FailureMapper().classify({}, task_spec=task, step_count=12, terminated=True)
+
+    assert classification.label == "unstable_contact"
+    assert classification.source == "mapper"

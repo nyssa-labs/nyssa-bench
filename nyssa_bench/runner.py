@@ -289,6 +289,7 @@ class PolicyRunner:
             last_info,
             task_spec=task,
             step_count=len(steps),
+            terminated=bool(steps[-1].terminated) if steps else False,
             truncated=bool(last_info.get("truncated", False)) or (bool(steps[-1].truncated) if steps else False),
         )
         failure_label = None if success else classification.label
