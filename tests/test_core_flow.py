@@ -485,6 +485,45 @@ def test_mujoco_pusher_guided_sequences_use_body_geometry_and_restore_state():
     assert engine.env.unwrapped.data.qvel.tolist() == [0.0, 0.0]
 
 
+def test_mujoco_pusher_recovery_commits_only_sequential_macros():
+    from nyssa_bench.experts.base import MuJoCoHeuristicExpertProvider
+
+    class Plan:
+        def __init__(self, label: str) -> None:
+            self.label = label
+            self.sequence = [np.asarray([0.1]), np.asarray([0.2]), np.asarray([0.3])]
+            self.details = {"recovery_plan_label": label}
+
+    task = Suite.load("mujoco_control_v0").filter_tasks(["mujoco_pusher"]).tasks[0]
+    expert = MuJoCoHeuristicExpertProvider(rollout_horizon=3)
+    observation = {
+        "raw": [0.0],
+        "action_space": {
+            "type": "box",
+            "shape": [1],
+            "low": [-1.0],
+            "high": [1.0],
+        },
+    }
+
+    expert._best_rollout_plan = lambda *args, **kwargs: Plan("pusher_push")  # type: ignore[method-assign]
+    push_recovery = expert.recover(state={"observation": observation}, failure="bad_action", task=task, engine=object())
+
+    assert push_recovery is not None
+    assert len(push_recovery) == 1
+    assert expert.last_recovery_details is not None
+    assert expert.last_recovery_details["recovery_plan_committed"] is False
+    assert expert.last_recovery_details["recovery_plan_candidate_length"] == 3
+
+    expert._best_rollout_plan = lambda *args, **kwargs: Plan("pusher_approach_then_push")  # type: ignore[method-assign]
+    mixed_recovery = expert.recover(state={"observation": observation}, failure="bad_action", task=task, engine=object())
+
+    assert mixed_recovery is not None
+    assert len(mixed_recovery) == 3
+    assert expert.last_recovery_details is not None
+    assert expert.last_recovery_details["recovery_plan_committed"] is True
+
+
 def test_runner_executes_action_chunks(tmp_path: Path):
     class TwoStepEngine(UnitEngine):
         max_steps = 2

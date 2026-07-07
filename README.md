@@ -212,7 +212,9 @@ rollout shaping from object-goal and arm-object distances when those MuJoCo
 body positions are available. Pusher also uses body-geometry guided recovery
 macro-plans: sparse local arm-control probes, approach behind the object, push
 toward the goal, and mixed approach-then-push sequences. Recovery executes the
-selected short-horizon plan instead of discarding every action after the first.
+selected short-horizon plan instead of discarding every action after the first,
+but Pusher only commits sequential mixed plans by default so single-mode push or
+approach plans can replan every step.
 `NYSSA_MUJOCO_ADAPTIVE_MARGIN=auto` switches Pusher to a margin derived from
 the near-best candidate return spread, which avoids fixed margins that are too
 large for small Pusher score gaps. `NYSSA_MUJOCO_MARGIN_TOP_FRACTION` controls

@@ -269,6 +269,13 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             ),
         )
         self.min_margin = float(min_margin if min_margin is not None else os.getenv("NYSSA_MUJOCO_MIN_MARGIN", "1e-6"))
+        commit_labels = os.getenv(
+            "NYSSA_MUJOCO_PUSHER_RECOVERY_COMMIT_LABELS",
+            "pusher_approach_then_push,pusher_alternating_approach_push",
+        )
+        self.pusher_recovery_commit_labels = {
+            label.strip() for label in commit_labels.split(",") if label.strip()
+        }
         self._rng: Any | None = None
         self._bounds = BoundsVerifierExpertProvider()
         self.last_plan_details: dict[str, Any] | None = None
@@ -318,12 +325,16 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         if engine is not None:
             plan = self._best_rollout_plan(observation, task=task, engine=engine)
             if plan is not None and plan.sequence:
+                committed = self._should_commit_recovery_plan(plan, task=task)
+                sequence = plan.sequence if committed else plan.sequence[:1]
                 self.last_recovery_details = {
                     **plan.details,
                     "failure": failure,
-                    "recovery_plan_length": len(plan.sequence),
+                    "recovery_plan_committed": committed,
+                    "recovery_plan_length": len(sequence),
+                    "recovery_plan_candidate_length": len(plan.sequence),
                 }
-                return plan.sequence
+                return sequence
         action = self._heuristic_action(observation)
         if action is None:
             return None
@@ -378,6 +389,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             "margin_top_k": self.margin_top_k,
             "margin_top_fraction": self.margin_top_fraction,
             "min_margin": self.min_margin,
+            "pusher_recovery_commit_labels": sorted(self.pusher_recovery_commit_labels),
         }
 
     def _rollout_score_against_candidates(
@@ -509,6 +521,11 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             "pusher_shaping_scale": self.pusher_shaping_scale if _is_mujoco_pusher_task(task) else None,
         }
         return _RolloutPlan(best_plan.label, best_plan.sequence.copy(), details)
+
+    def _should_commit_recovery_plan(self, plan: _RolloutPlan, *, task: Any) -> bool:
+        if not _is_mujoco_pusher_task(task):
+            return len(plan.sequence) > 1
+        return plan.label in self.pusher_recovery_commit_labels and len(plan.sequence) > 1
 
     def _candidate_action_sequences(
         self,
