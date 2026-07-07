@@ -200,6 +200,7 @@ NYSSA_MUJOCO_ADAPTIVE_MARGIN=auto \
 NYSSA_MUJOCO_MARGIN_FRACTION=0.25 \
 NYSSA_MUJOCO_MARGIN_TOP_K=2 \
 NYSSA_MUJOCO_MARGIN_TOP_FRACTION=0.10 \
+NYSSA_MUJOCO_RECOVERY_TASKS=mujoco_pusher \
 uv run nyssa ablate ...
 ```
 
@@ -224,6 +225,11 @@ success.
 longer horizon than the execution horizon; the default is `15`. 
 `NYSSA_MUJOCO_PUSHER_RECOVERY_EXECUTION_HORIZON` caps how many committed
 recovery actions run before replanning.
+`NYSSA_MUJOCO_RECOVERY_TASKS` controls where MuJoCo macro recovery is active;
+the default is `mujoco_pusher`, so full-suite `verifier_recovery` uses the
+rollout verifier on Reacher and InvertedPendulum without applying Pusher-tuned
+macro actions there. Set it to `all` or a comma-separated task list when a
+recovery planner has been validated for those tasks.
 MuJoCo rollout scoring also gives a large bonus to candidates that cross a
 task's configured `reward_threshold`, so near-success states prefer actions
 that satisfy the benchmark predicate rather than only improving shaped progress.
@@ -262,6 +268,7 @@ NYSSA_MUJOCO_ADAPTIVE_MARGIN=auto \
 NYSSA_MUJOCO_MARGIN_FRACTION=0.25 \
 NYSSA_MUJOCO_MARGIN_TOP_K=2 \
 NYSSA_MUJOCO_MARGIN_TOP_FRACTION=0.10 \
+NYSSA_MUJOCO_RECOVERY_TASKS=mujoco_pusher \
 uv run nyssa ablate \
   --suite mujoco_control_v0 \
   --tasks mujoco_pusher \
@@ -311,6 +318,7 @@ uv run nyssa train-recovery-bc \
 
 NYSSA_TASK_BC_DIR=checkpoints/recovery_bc_by_task \
 NYSSA_TASK_BC_MISSING=zero \
+NYSSA_MUJOCO_RECOVERY_TASKS=mujoco_pusher \
 uv run nyssa ablate \
   --suite mujoco_control_v0 \
   --engine mujoco \
@@ -326,6 +334,7 @@ uv run nyssa ablate \
 Closed-loop MuJoCo recovery smoke:
 
 ```bash
+NYSSA_MUJOCO_RECOVERY_TASKS=mujoco_pusher \
 uv run nyssa ablate \
   --suite mujoco_control_v0 \
   --engine mujoco \
@@ -386,6 +395,7 @@ uv run nyssa run \
 After smoke runs pass, scale to public-claim settings:
 
 ```bash
+NYSSA_MUJOCO_RECOVERY_TASKS=mujoco_pusher \
 uv run nyssa ablate \
   --suite mujoco_control_v0 \
   --engine mujoco \

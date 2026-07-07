@@ -292,6 +292,11 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             1,
             int(os.getenv("NYSSA_MUJOCO_PUSHER_RECOVERY_EXECUTION_HORIZON", str(self.rollout_horizon))),
         )
+        self.recovery_task_ids = {
+            task_id.strip().lower()
+            for task_id in os.getenv("NYSSA_MUJOCO_RECOVERY_TASKS", "mujoco_pusher").split(",")
+            if task_id.strip()
+        }
         self._rng: Any | None = None
         self._bounds = BoundsVerifierExpertProvider()
         self.last_plan_details: dict[str, Any] | None = None
@@ -337,6 +342,14 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
     ) -> list[Any] | None:
         observation = state.get("observation")
         if not isinstance(observation, dict):
+            return None
+        if not self._recovery_enabled_for_task(task):
+            self.last_recovery_details = {
+                "failure": failure,
+                "recovery_disabled": True,
+                "task_id": str(getattr(task, "task_id", "")),
+                "recovery_task_ids": sorted(self.recovery_task_ids),
+            }
             return None
         if engine is not None:
             plan = self._best_rollout_plan(observation, task=task, engine=engine)
@@ -411,6 +424,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             "pusher_finish_scales": self.pusher_finish_scales,
             "pusher_planning_horizon": self.pusher_planning_horizon,
             "pusher_recovery_execution_horizon": self.pusher_recovery_execution_horizon,
+            "recovery_task_ids": sorted(self.recovery_task_ids),
         }
 
     def _rollout_score_against_candidates(
@@ -554,6 +568,10 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         if not _is_mujoco_pusher_task(task):
             return self.rollout_horizon
         return min(self.pusher_recovery_execution_horizon, self.pusher_planning_horizon)
+
+    def _recovery_enabled_for_task(self, task: Any | None) -> bool:
+        task_id = str(getattr(task, "task_id", "")).lower()
+        return "*" in self.recovery_task_ids or "all" in self.recovery_task_ids or task_id in self.recovery_task_ids
 
     def _should_commit_recovery_plan(self, plan: _RolloutPlan, *, task: Any) -> bool:
         if not _is_mujoco_pusher_task(task):

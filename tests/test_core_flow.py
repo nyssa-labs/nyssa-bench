@@ -309,12 +309,85 @@ def test_mujoco_expert_uses_rollout_scoring_and_restores_state():
     assert score.details is not None
     assert score.details["rollout_horizon"] == 3
     assert score.details["score_gap"] > score.details["rollout_margin"]
-    assert recovery is not None
-    assert np.asarray(recovery[0]).tolist() == [-1.0, 1.0]
+    assert recovery is None
+    assert expert.last_recovery_details is not None
+    assert expert.last_recovery_details["recovery_disabled"] is True
+    assert expert.last_recovery_details["task_id"] == "mujoco_reacher"
     assert engine.env.unwrapped.data.qpos.tolist() == [0.0, 0.0]
     assert engine.env.unwrapped.data.qvel.tolist() == [0.0, 0.0]
     assert engine.elapsed_steps == 0
     assert engine.episode_return == 0.0
+
+
+def test_mujoco_recovery_defaults_to_pusher_only():
+    from nyssa_bench.experts.base import MuJoCoHeuristicExpertProvider
+
+    class Plan:
+        label = "pusher_approach_then_push"
+        sequence = [np.asarray([0.1]), np.asarray([0.2]), np.asarray([0.3])]
+        details = {"recovery_plan_label": label}
+
+    suite = Suite.load("mujoco_control_v0")
+    reacher = suite.filter_tasks(["mujoco_reacher"]).tasks[0]
+    pusher = suite.filter_tasks(["mujoco_pusher"]).tasks[0]
+    expert = MuJoCoHeuristicExpertProvider(rollout_horizon=3)
+    observation = {
+        "raw": [0.0],
+        "action_space": {
+            "type": "box",
+            "shape": [1],
+            "low": [-1.0],
+            "high": [1.0],
+        },
+    }
+    expert._best_rollout_plan = lambda *args, **kwargs: Plan()  # type: ignore[method-assign]
+
+    reacher_recovery = expert.recover(
+        state={"observation": observation},
+        failure="bad_action",
+        task=reacher,
+        engine=object(),
+    )
+    pusher_recovery = expert.recover(
+        state={"observation": observation},
+        failure="bad_action",
+        task=pusher,
+        engine=object(),
+    )
+
+    assert reacher_recovery is None
+    assert pusher_recovery is not None
+    assert len(pusher_recovery) == 3
+    assert expert.metadata()["recovery_task_ids"] == ["mujoco_pusher"]
+
+
+def test_mujoco_recovery_task_allowlist_can_enable_all(monkeypatch):
+    from nyssa_bench.experts.base import MuJoCoHeuristicExpertProvider
+
+    class Plan:
+        label = "single_action_0"
+        sequence = [np.asarray([0.1]), np.asarray([0.2])]
+        details = {"recovery_plan_label": label}
+
+    monkeypatch.setenv("NYSSA_MUJOCO_RECOVERY_TASKS", "all")
+    task = Suite.load("mujoco_control_v0").filter_tasks(["mujoco_reacher"]).tasks[0]
+    expert = MuJoCoHeuristicExpertProvider(rollout_horizon=2)
+    observation = {
+        "raw": [0.0],
+        "action_space": {
+            "type": "box",
+            "shape": [1],
+            "low": [-1.0],
+            "high": [1.0],
+        },
+    }
+    expert._best_rollout_plan = lambda *args, **kwargs: Plan()  # type: ignore[method-assign]
+
+    recovery = expert.recover(state={"observation": observation}, failure="bad_action", task=task, engine=object())
+
+    assert recovery is not None
+    assert len(recovery) == 2
+    assert expert.metadata()["recovery_task_ids"] == ["all"]
 
 
 def test_mujoco_expert_accepts_near_expert_action_inside_rollout_margin():
