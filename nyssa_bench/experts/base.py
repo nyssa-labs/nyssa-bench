@@ -286,7 +286,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         )
         self.pusher_planning_horizon = max(
             self.rollout_horizon,
-            int(os.getenv("NYSSA_MUJOCO_PUSHER_PLANNING_HORIZON", "10")),
+            int(os.getenv("NYSSA_MUJOCO_PUSHER_PLANNING_HORIZON", "15")),
         )
         self.pusher_recovery_execution_horizon = max(
             1,

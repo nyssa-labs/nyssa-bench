@@ -528,7 +528,7 @@ def test_mujoco_pusher_scaled_guided_plans_emit_stable_labels():
     assert all(len(plan.sequence) == 5 for plan in plans)
     assert expert.metadata()["pusher_action_scales"] == [0.5, 1.0, 1.5, 2.0]
     assert expert.metadata()["pusher_finish_scales"] == [0.05, 0.1, 0.2, 0.35]
-    assert expert.metadata()["pusher_planning_horizon"] == 10
+    assert expert.metadata()["pusher_planning_horizon"] == 15
 
 
 def test_mujoco_pusher_candidate_plans_use_longer_planning_horizon():
@@ -550,7 +550,7 @@ def test_mujoco_pusher_candidate_plans_use_longer_planning_horizon():
     plans = expert._candidate_rollout_plans(observation, include_zero=True, task=task, engine=engine)
 
     assert any(plan.label.startswith("pusher_push") for plan in plans)
-    assert {len(plan.sequence) for plan in plans} == {10}
+    assert {len(plan.sequence) for plan in plans} == {15}
 
 
 def test_mujoco_pusher_recovery_commits_only_sequential_macros():
