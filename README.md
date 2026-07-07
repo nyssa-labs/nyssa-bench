@@ -215,6 +215,8 @@ toward the goal, and mixed approach-then-push sequences. Recovery executes the
 selected short-horizon plan instead of discarding every action after the first,
 but Pusher only commits sequential mixed plans by default so single-mode push or
 approach plans can replan every step.
+`NYSSA_MUJOCO_PUSHER_ACTION_SCALES` controls the guided action scales considered
+by the test-time planner, for example `0.5,1.0,1.5,2.0`.
 `NYSSA_MUJOCO_ADAPTIVE_MARGIN=auto` switches Pusher to a margin derived from
 the near-best candidate return spread, which avoids fixed margins that are too
 large for small Pusher score gaps. `NYSSA_MUJOCO_MARGIN_TOP_FRACTION` controls

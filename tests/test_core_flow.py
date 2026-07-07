@@ -485,6 +485,32 @@ def test_mujoco_pusher_guided_sequences_use_body_geometry_and_restore_state():
     assert engine.env.unwrapped.data.qvel.tolist() == [0.0, 0.0]
 
 
+def test_mujoco_pusher_scaled_guided_plans_emit_stable_labels():
+    from nyssa_bench.experts.base import MuJoCoHeuristicExpertProvider
+
+    task = Suite.load("mujoco_control_v0").filter_tasks(["mujoco_pusher"]).tasks[0]
+    expert = MuJoCoHeuristicExpertProvider(rollout_horizon=5, candidate_count=0)
+    engine = _FakeMuJoCoEngine()
+    observation = {
+        "raw": [1.0, -1.0],
+        "action_space": {
+            "type": "box",
+            "shape": [2],
+            "low": [-1.0, -1.0],
+            "high": [1.0, 1.0],
+        },
+    }
+
+    plans = expert._pusher_guided_rollout_plans(observation, task=task, engine=engine)
+    labels = {plan.label for plan in plans}
+
+    assert "pusher_push_s1" in labels
+    assert "pusher_approach_then_push_s1_split2" in labels
+    assert "pusher_alternating_approach_push_s2" in labels
+    assert all(len(plan.sequence) == 5 for plan in plans)
+    assert expert.metadata()["pusher_action_scales"] == [0.5, 1.0, 1.5, 2.0]
+
+
 def test_mujoco_pusher_recovery_commits_only_sequential_macros():
     from nyssa_bench.experts.base import MuJoCoHeuristicExpertProvider
 

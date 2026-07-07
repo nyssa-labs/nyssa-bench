@@ -276,6 +276,10 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         self.pusher_recovery_commit_labels = {
             label.strip() for label in commit_labels.split(",") if label.strip()
         }
+        self.pusher_action_scales = _parse_float_list(
+            os.getenv("NYSSA_MUJOCO_PUSHER_ACTION_SCALES", "0.5,1.0,1.5,2.0"),
+            default=[1.0],
+        )
         self._rng: Any | None = None
         self._bounds = BoundsVerifierExpertProvider()
         self.last_plan_details: dict[str, Any] | None = None
@@ -390,6 +394,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             "margin_top_fraction": self.margin_top_fraction,
             "min_margin": self.min_margin,
             "pusher_recovery_commit_labels": sorted(self.pusher_recovery_commit_labels),
+            "pusher_action_scales": self.pusher_action_scales,
         }
 
     def _rollout_score_against_candidates(
@@ -525,7 +530,13 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
     def _should_commit_recovery_plan(self, plan: _RolloutPlan, *, task: Any) -> bool:
         if not _is_mujoco_pusher_task(task):
             return len(plan.sequence) > 1
-        return plan.label in self.pusher_recovery_commit_labels and len(plan.sequence) > 1
+        return (
+            any(
+                plan.label == label or plan.label.startswith(f"{label}_")
+                for label in self.pusher_recovery_commit_labels
+            )
+            and len(plan.sequence) > 1
+        )
 
     def _candidate_action_sequences(
         self,
@@ -557,15 +568,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             _RolloutPlan(f"single_action_{index}", [candidate] * self.rollout_horizon)
             for index, candidate in enumerate(self._candidate_actions(observation, include_zero=include_zero))
         ]
-        pusher_labels = [
-            "pusher_approach",
-            "pusher_push",
-            "pusher_approach_then_push",
-            "pusher_alternating_approach_push",
-        ]
-        for index, sequence in enumerate(self._pusher_guided_action_sequences(observation, task=task, engine=engine)):
-            label = pusher_labels[index] if index < len(pusher_labels) else f"pusher_guided_{index}"
-            plans.append(_RolloutPlan(label, sequence))
+        plans.extend(self._pusher_guided_rollout_plans(observation, task=task, engine=engine))
         for index, sequence in enumerate(self._random_action_sequences(observation)):
             plans.append(_RolloutPlan(f"random_shooting_{index}", sequence))
         return plans
@@ -577,6 +580,18 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         task: Any | None,
         engine: Any | None,
     ) -> list[list[Any]]:
+        return [
+            plan.sequence
+            for plan in self._pusher_guided_rollout_plans(observation, task=task, engine=engine)
+        ]
+
+    def _pusher_guided_rollout_plans(
+        self,
+        observation: dict[str, Any],
+        *,
+        task: Any | None,
+        engine: Any | None,
+    ) -> list[_RolloutPlan]:
         if engine is None or not _is_mujoco_pusher_task(task):
             return []
         try:
@@ -597,19 +612,35 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             approach_delta = behind_object - tip_xy
             push_delta = goal_direction
 
-            sequences: list[list[Any]] = []
+            low, high, _ = action_bounds(observation)
+            plans: list[_RolloutPlan] = []
             approach = self._pusher_action_for_tip_delta(observation, engine=engine, desired_delta=approach_delta)
             push = self._pusher_action_for_tip_delta(observation, engine=engine, desired_delta=push_delta)
-            if approach is not None:
-                sequences.append([approach] * self.rollout_horizon)
-            if push is not None:
-                sequences.append([push] * self.rollout_horizon)
-            if approach is not None and push is not None:
-                split = max(1, self.rollout_horizon // 2)
-                sequences.append([approach] * split + [push] * max(1, self.rollout_horizon - split))
-                alternating = [approach if index % 2 == 0 else push for index in range(self.rollout_horizon)]
-                sequences.append(alternating)
-            return [sequence[: self.rollout_horizon] for sequence in sequences if len(sequence) >= self.rollout_horizon]
+            for scale in self.pusher_action_scales:
+                suffix = _scale_label(scale)
+                scaled_approach = _scale_action(approach, scale, low, high) if approach is not None else None
+                scaled_push = _scale_action(push, scale, low, high) if push is not None else None
+                if scaled_approach is not None:
+                    plans.append(_RolloutPlan(f"pusher_approach_{suffix}", [scaled_approach] * self.rollout_horizon))
+                if scaled_push is not None:
+                    plans.append(_RolloutPlan(f"pusher_push_{suffix}", [scaled_push] * self.rollout_horizon))
+                if scaled_approach is not None and scaled_push is not None:
+                    splits = sorted({1, max(1, self.rollout_horizon // 2), max(1, self.rollout_horizon - 1)})
+                    for split in splits:
+                        push_count = max(1, self.rollout_horizon - split)
+                        sequence = [scaled_approach] * split + [scaled_push] * push_count
+                        plans.append(
+                            _RolloutPlan(
+                                f"pusher_approach_then_push_{suffix}_split{split}",
+                                sequence[: self.rollout_horizon],
+                            )
+                        )
+                    alternating = [
+                        scaled_approach if index % 2 == 0 else scaled_push
+                        for index in range(self.rollout_horizon)
+                    ]
+                    plans.append(_RolloutPlan(f"pusher_alternating_approach_push_{suffix}", alternating))
+            return [plan for plan in plans if len(plan.sequence) >= self.rollout_horizon]
         except Exception:
             return []
 
@@ -764,6 +795,32 @@ def _prod(values: tuple[int, ...]) -> int:
     for value in values:
         total *= int(value)
     return total
+
+
+def _parse_float_list(value: str, *, default: list[float]) -> list[float]:
+    parsed = []
+    for item in value.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        try:
+            parsed.append(float(item))
+        except ValueError:
+            continue
+    return parsed or default
+
+
+def _scale_label(value: float) -> str:
+    return f"s{value:g}".replace(".", "p").replace("-", "m")
+
+
+def _scale_action(action: Any, scale: float, low: Any, high: Any) -> Any:
+    try:
+        import numpy as np
+
+        return np.clip(np.asarray(action, dtype=float) * float(scale), low, high)
+    except Exception:
+        return action
 
 
 def _evaluate_mujoco_action(engine: Any, action: Any) -> float | None:
