@@ -404,6 +404,31 @@ def test_mujoco_pusher_adaptive_margin_can_use_top_fraction_when_top_k_disabled(
     assert margin == pytest.approx(0.000008)
 
 
+def test_mujoco_pusher_guided_sequences_use_body_geometry_and_restore_state():
+    from nyssa_bench.experts.base import MuJoCoHeuristicExpertProvider
+
+    task = Suite.load("mujoco_control_v0").filter_tasks(["mujoco_pusher"]).tasks[0]
+    expert = MuJoCoHeuristicExpertProvider(rollout_horizon=5, candidate_count=0)
+    engine = _FakeMuJoCoEngine()
+    observation = {
+        "raw": [1.0, -1.0],
+        "action_space": {
+            "type": "box",
+            "shape": [2],
+            "low": [-1.0, -1.0],
+            "high": [1.0, 1.0],
+        },
+    }
+
+    sequences = expert._pusher_guided_action_sequences(observation, task=task, engine=engine)
+
+    assert len(sequences) >= 3
+    assert all(len(sequence) == 5 for sequence in sequences)
+    assert any(np.linalg.norm(np.asarray(sequence[0])) > 0.0 for sequence in sequences)
+    assert engine.env.unwrapped.data.qpos.tolist() == [0.0, 0.0]
+    assert engine.env.unwrapped.data.qvel.tolist() == [0.0, 0.0]
+
+
 def test_runner_executes_action_chunks(tmp_path: Path):
     class TwoStepEngine(UnitEngine):
         max_steps = 2

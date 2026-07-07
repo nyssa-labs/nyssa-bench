@@ -336,7 +336,13 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
     def metadata(self) -> dict[str, Any]:
         return {
             "provider_id": self.provider_id,
-            "capabilities": ["act", "recover", "score_action", "short_horizon_rollout_score"],
+            "capabilities": [
+                "act",
+                "recover",
+                "score_action",
+                "short_horizon_rollout_score",
+                "pusher_guided_proposals",
+            ],
             "rollout_margin": self.rollout_margin,
             "rollout_horizon": self.rollout_horizon,
             "candidate_count": self.candidate_count,
@@ -369,7 +375,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         best_return = proposed_return
         best_index = None
         candidate_returns = [proposed_return]
-        candidates = self._candidate_action_sequences(observation, include_zero=True)
+        candidates = self._candidate_action_sequences(observation, include_zero=True, task=task, engine=engine)
         for candidate_index, candidate_sequence in enumerate(candidates):
             candidate_return = _evaluate_mujoco_action_sequence(
                 engine,
@@ -443,7 +449,12 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
     def _best_rollout_candidate(self, observation: dict[str, Any], *, task: Any, engine: Any) -> Any | None:
         best_action = None
         best_return = None
-        for candidate_sequence in self._candidate_action_sequences(observation, include_zero=True):
+        for candidate_sequence in self._candidate_action_sequences(
+            observation,
+            include_zero=True,
+            task=task,
+            engine=engine,
+        ):
             candidate_return = _evaluate_mujoco_action_sequence(
                 engine,
                 candidate_sequence,
@@ -455,10 +466,106 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
                 best_action = candidate_sequence[0] if candidate_sequence else None
         return best_action
 
-    def _candidate_action_sequences(self, observation: dict[str, Any], *, include_zero: bool) -> list[list[Any]]:
-        candidates = [[candidate] * self.rollout_horizon for candidate in self._candidate_actions(observation, include_zero=include_zero)]
+    def _candidate_action_sequences(
+        self,
+        observation: dict[str, Any],
+        *,
+        include_zero: bool,
+        task: Any | None = None,
+        engine: Any | None = None,
+    ) -> list[list[Any]]:
+        candidates = [
+            [candidate] * self.rollout_horizon
+            for candidate in self._candidate_actions(observation, include_zero=include_zero)
+        ]
+        candidates.extend(self._pusher_guided_action_sequences(observation, task=task, engine=engine))
         candidates.extend(self._random_action_sequences(observation))
         return candidates
+
+    def _pusher_guided_action_sequences(
+        self,
+        observation: dict[str, Any],
+        *,
+        task: Any | None,
+        engine: Any | None,
+    ) -> list[list[Any]]:
+        if engine is None or not _is_mujoco_pusher_task(task):
+            return []
+        try:
+            import numpy as np
+
+            object_pos = _first_body_com(engine, ("object", "obj", "puck", "object0"))
+            goal_pos = _first_body_com(engine, ("goal", "target"))
+            tip_pos = _first_body_com(engine, ("tips_arm", "fingertip", "tip", "end_effector"))
+            if object_pos is None or goal_pos is None or tip_pos is None:
+                return []
+            goal_direction = np.asarray(goal_pos[:2], dtype=float) - np.asarray(object_pos[:2], dtype=float)
+            goal_norm = float(np.linalg.norm(goal_direction))
+            if goal_norm <= 1e-8:
+                return []
+            goal_direction = goal_direction / goal_norm
+            behind_object = np.asarray(object_pos[:2], dtype=float) - 0.18 * goal_direction
+            tip_xy = np.asarray(tip_pos[:2], dtype=float)
+            approach_delta = behind_object - tip_xy
+            push_delta = goal_direction
+
+            sequences: list[list[Any]] = []
+            approach = self._pusher_action_for_tip_delta(observation, engine=engine, desired_delta=approach_delta)
+            push = self._pusher_action_for_tip_delta(observation, engine=engine, desired_delta=push_delta)
+            if approach is not None:
+                sequences.append([approach] * self.rollout_horizon)
+            if push is not None:
+                sequences.append([push] * self.rollout_horizon)
+            if approach is not None and push is not None:
+                split = max(1, self.rollout_horizon // 2)
+                sequences.append([approach] * split + [push] * max(1, self.rollout_horizon - split))
+                alternating = [approach if index % 2 == 0 else push for index in range(self.rollout_horizon)]
+                sequences.append(alternating)
+            return [sequence[: self.rollout_horizon] for sequence in sequences if len(sequence) >= self.rollout_horizon]
+        except Exception:
+            return []
+
+    def _pusher_action_for_tip_delta(
+        self,
+        observation: dict[str, Any],
+        *,
+        engine: Any,
+        desired_delta: Any,
+    ) -> Any | None:
+        try:
+            import numpy as np
+
+            low, high, shape = action_bounds(observation)
+            size = int(_prod(shape))
+            desired = np.asarray(desired_delta, dtype=float).reshape(-1)[:2]
+            desired_norm = float(np.linalg.norm(desired))
+            if desired_norm <= 1e-8:
+                return np.zeros(shape, dtype=float)
+            desired = desired / desired_norm * min(0.08, desired_norm)
+            base_tip = _first_body_com(engine, ("tips_arm", "fingertip", "tip", "end_effector"))
+            if base_tip is None:
+                return None
+            columns = []
+            eps = np.maximum(0.05, 0.25 * np.maximum(np.abs(high.reshape(-1)), 1.0))
+            for index in range(size):
+                action = np.zeros(size, dtype=float)
+                action[index] = float(eps[index])
+                moved_tip = _evaluate_mujoco_terminal_body_com(
+                    engine,
+                    action.reshape(shape),
+                    ("tips_arm", "fingertip", "tip", "end_effector"),
+                )
+                if moved_tip is None:
+                    columns.append(np.zeros(2, dtype=float))
+                else:
+                    columns.append((np.asarray(moved_tip[:2], dtype=float) - np.asarray(base_tip[:2], dtype=float)) / eps[index])
+            jacobian = np.stack(columns, axis=1)
+            if not np.any(np.abs(jacobian) > 1e-10):
+                return None
+            solution, *_ = np.linalg.lstsq(jacobian, desired, rcond=None)
+            return np.clip(solution.reshape(shape), low, high)
+        except Exception:
+            return None
 
     def _candidate_actions(self, observation: dict[str, Any], *, include_zero: bool) -> list[Any]:
         try:
@@ -586,6 +693,22 @@ def _evaluate_mujoco_action_sequence(
         if shaping is not None:
             total_reward += shaping
         return total_reward
+    except Exception:
+        return None
+    finally:
+        _restore_mujoco_engine(engine, snapshot)
+
+
+def _evaluate_mujoco_terminal_body_com(engine: Any, action: Any, body_names: tuple[str, ...]) -> Any | None:
+    env = getattr(engine, "env", None)
+    if env is None:
+        return None
+    snapshot = _snapshot_mujoco_engine(engine)
+    if snapshot is None:
+        return None
+    try:
+        env.step(action)
+        return _first_body_com(engine, body_names)
     except Exception:
         return None
     finally:
