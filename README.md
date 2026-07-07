@@ -220,6 +220,10 @@ by the test-time planner, for example `0.5,1.0,1.5,2.0`.
 `NYSSA_MUJOCO_PUSHER_FINISH_SCALES` adds low-control push-and-settle candidates
 for near-threshold Pusher states where reducing control penalty can decide
 success.
+`NYSSA_MUJOCO_PUSHER_PLANNING_HORIZON` lets Pusher score candidates over a
+longer horizon than the execution horizon, while
+`NYSSA_MUJOCO_PUSHER_RECOVERY_EXECUTION_HORIZON` caps how many committed
+recovery actions run before replanning.
 MuJoCo rollout scoring also gives a large bonus to candidates that cross a
 task's configured `reward_threshold`, so near-success states prefer actions
 that satisfy the benchmark predicate rather than only improving shaped progress.

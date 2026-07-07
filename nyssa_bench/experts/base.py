@@ -284,6 +284,14 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             os.getenv("NYSSA_MUJOCO_PUSHER_FINISH_SCALES", "0.05,0.1,0.2,0.35"),
             default=[0.1],
         )
+        self.pusher_planning_horizon = max(
+            self.rollout_horizon,
+            int(os.getenv("NYSSA_MUJOCO_PUSHER_PLANNING_HORIZON", "10")),
+        )
+        self.pusher_recovery_execution_horizon = max(
+            1,
+            int(os.getenv("NYSSA_MUJOCO_PUSHER_RECOVERY_EXECUTION_HORIZON", str(self.rollout_horizon))),
+        )
         self._rng: Any | None = None
         self._bounds = BoundsVerifierExpertProvider()
         self.last_plan_details: dict[str, Any] | None = None
@@ -334,7 +342,8 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             plan = self._best_rollout_plan(observation, task=task, engine=engine)
             if plan is not None and plan.sequence:
                 committed = self._should_commit_recovery_plan(plan, task=task)
-                sequence = plan.sequence if committed else plan.sequence[:1]
+                execution_horizon = self._recovery_execution_horizon(task)
+                sequence = plan.sequence[:execution_horizon] if committed else plan.sequence[:1]
                 self.last_recovery_details = {
                     **plan.details,
                     "failure": failure,
@@ -400,6 +409,8 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             "pusher_recovery_commit_labels": sorted(self.pusher_recovery_commit_labels),
             "pusher_action_scales": self.pusher_action_scales,
             "pusher_finish_scales": self.pusher_finish_scales,
+            "pusher_planning_horizon": self.pusher_planning_horizon,
+            "pusher_recovery_execution_horizon": self.pusher_recovery_execution_horizon,
         }
 
     def _rollout_score_against_candidates(
@@ -412,9 +423,10 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
     ) -> ExpertActionScore | None:
         if engine is None:
             return None
+        planning_horizon = self._planning_horizon(task)
         proposed_return = _evaluate_mujoco_action_sequence(
             engine,
-            [action] * self.rollout_horizon,
+            [action] * planning_horizon,
             task=task,
             pusher_shaping_scale=self.pusher_shaping_scale,
         )
@@ -448,6 +460,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             "effective_rollout_margin": effective_margin,
             **margin_details,
             "rollout_horizon": self.rollout_horizon,
+            "planning_horizon": planning_horizon,
             "candidate_count": len(candidate_plans),
             "best_candidate_index": best_index,
             "best_candidate_label": best_label if best_index is not None else None,
@@ -501,12 +514,13 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         best_plan = None
         best_return = None
         best_index = None
+        planning_horizon = self._planning_horizon(task)
         for candidate_index, candidate_plan in enumerate(
             self._candidate_rollout_plans(
-            observation,
-            include_zero=True,
-            task=task,
-            engine=engine,
+                observation,
+                include_zero=True,
+                task=task,
+                engine=engine,
             )
         ):
             candidate_return = _evaluate_mujoco_action_sequence(
@@ -527,10 +541,19 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             "recovery_plan_index": best_index,
             "recovery_plan_length": len(best_plan.sequence),
             "rollout_horizon": self.rollout_horizon,
+            "planning_horizon": planning_horizon,
             "rollout_score_kind": _mujoco_rollout_score_kind(task),
             "pusher_shaping_scale": self.pusher_shaping_scale if _is_mujoco_pusher_task(task) else None,
         }
         return _RolloutPlan(best_plan.label, best_plan.sequence.copy(), details)
+
+    def _planning_horizon(self, task: Any | None) -> int:
+        return self.pusher_planning_horizon if _is_mujoco_pusher_task(task) else self.rollout_horizon
+
+    def _recovery_execution_horizon(self, task: Any | None) -> int:
+        if not _is_mujoco_pusher_task(task):
+            return self.rollout_horizon
+        return min(self.pusher_recovery_execution_horizon, self.pusher_planning_horizon)
 
     def _should_commit_recovery_plan(self, plan: _RolloutPlan, *, task: Any) -> bool:
         if not _is_mujoco_pusher_task(task):
@@ -569,12 +592,13 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         task: Any | None = None,
         engine: Any | None = None,
     ) -> list[_RolloutPlan]:
+        horizon = self._planning_horizon(task)
         plans = [
-            _RolloutPlan(f"single_action_{index}", [candidate] * self.rollout_horizon)
+            _RolloutPlan(f"single_action_{index}", [candidate] * horizon)
             for index, candidate in enumerate(self._candidate_actions(observation, include_zero=include_zero))
         ]
-        plans.extend(self._pusher_guided_rollout_plans(observation, task=task, engine=engine))
-        for index, sequence in enumerate(self._random_action_sequences(observation)):
+        plans.extend(self._pusher_guided_rollout_plans(observation, task=task, engine=engine, horizon=horizon))
+        for index, sequence in enumerate(self._random_action_sequences(observation, horizon=horizon)):
             plans.append(_RolloutPlan(f"random_shooting_{index}", sequence))
         return plans
 
@@ -587,7 +611,12 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
     ) -> list[list[Any]]:
         return [
             plan.sequence
-            for plan in self._pusher_guided_rollout_plans(observation, task=task, engine=engine)
+            for plan in self._pusher_guided_rollout_plans(
+                observation,
+                task=task,
+                engine=engine,
+                horizon=self.rollout_horizon,
+            )
         ]
 
     def _pusher_guided_rollout_plans(
@@ -596,6 +625,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         *,
         task: Any | None,
         engine: Any | None,
+        horizon: int | None = None,
     ) -> list[_RolloutPlan]:
         if engine is None or not _is_mujoco_pusher_task(task):
             return []
@@ -617,49 +647,60 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             approach_delta = behind_object - tip_xy
             push_delta = goal_direction
 
+            horizon = max(1, int(horizon or self.rollout_horizon))
             low, high, _ = action_bounds(observation)
             plans: list[_RolloutPlan] = []
-            approach = self._pusher_action_for_tip_delta(observation, engine=engine, desired_delta=approach_delta)
-            push = self._pusher_action_for_tip_delta(observation, engine=engine, desired_delta=push_delta)
+            approach = self._pusher_action_for_tip_delta(
+                observation,
+                engine=engine,
+                desired_delta=approach_delta,
+                probe_steps=horizon,
+            )
+            push = self._pusher_action_for_tip_delta(
+                observation,
+                engine=engine,
+                desired_delta=push_delta,
+                probe_steps=horizon,
+            )
             for scale in self.pusher_action_scales:
                 suffix = _scale_label(scale)
                 scaled_approach = _scale_action(approach, scale, low, high) if approach is not None else None
                 scaled_push = _scale_action(push, scale, low, high) if push is not None else None
                 if scaled_approach is not None:
-                    plans.append(_RolloutPlan(f"pusher_approach_{suffix}", [scaled_approach] * self.rollout_horizon))
+                    plans.append(_RolloutPlan(f"pusher_approach_{suffix}", [scaled_approach] * horizon))
                 if scaled_push is not None:
-                    plans.append(_RolloutPlan(f"pusher_push_{suffix}", [scaled_push] * self.rollout_horizon))
+                    plans.append(_RolloutPlan(f"pusher_push_{suffix}", [scaled_push] * horizon))
                 if scaled_approach is not None and scaled_push is not None:
-                    splits = sorted({1, max(1, self.rollout_horizon // 2), max(1, self.rollout_horizon - 1)})
+                    splits = sorted({1, max(1, horizon // 2), max(1, horizon - 1)})
                     for split in splits:
-                        push_count = max(1, self.rollout_horizon - split)
+                        push_count = max(1, horizon - split)
                         sequence = [scaled_approach] * split + [scaled_push] * push_count
                         plans.append(
                             _RolloutPlan(
                                 f"pusher_approach_then_push_{suffix}_split{split}",
-                                sequence[: self.rollout_horizon],
+                                sequence[:horizon],
                             )
                         )
                     alternating = [
                         scaled_approach if index % 2 == 0 else scaled_push
-                        for index in range(self.rollout_horizon)
+                        for index in range(horizon)
                     ]
                     plans.append(_RolloutPlan(f"pusher_alternating_approach_push_{suffix}", alternating))
             if push is not None:
                 zero = np.zeros_like(np.asarray(push, dtype=float))
-                plans.append(_RolloutPlan("pusher_finish_settle", [zero] * self.rollout_horizon))
+                plans.append(_RolloutPlan("pusher_finish_settle", [zero] * horizon))
                 for scale in self.pusher_finish_scales:
                     suffix = _scale_label(scale)
                     scaled_push = _scale_action(push, scale, low, high)
-                    for pulse_count in sorted({1, 2, max(1, self.rollout_horizon // 2)}):
-                        sequence = [scaled_push] * pulse_count + [zero] * max(0, self.rollout_horizon - pulse_count)
+                    for pulse_count in sorted({1, 2, max(1, horizon // 2)}):
+                        sequence = [scaled_push] * pulse_count + [zero] * max(0, horizon - pulse_count)
                         plans.append(
                             _RolloutPlan(
                                 f"pusher_finish_push_settle_{suffix}_pulse{pulse_count}",
-                                sequence[: self.rollout_horizon],
+                                sequence[:horizon],
                             )
                         )
-            return [plan for plan in plans if len(plan.sequence) >= self.rollout_horizon]
+            return [plan for plan in plans if len(plan.sequence) >= horizon]
         except Exception:
             return []
 
@@ -669,6 +710,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
         *,
         engine: Any,
         desired_delta: Any,
+        probe_steps: int | None = None,
     ) -> Any | None:
         try:
             import numpy as np
@@ -692,7 +734,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
                     engine,
                     action.reshape(shape),
                     ("tips_arm", "fingertip", "tip", "end_effector"),
-                    repeat_steps=self.rollout_horizon,
+                    repeat_steps=probe_steps or self.rollout_horizon,
                 )
                 if moved_tip is None:
                     columns.append(np.zeros(2, dtype=float))
@@ -746,7 +788,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             fallback = self._heuristic_action(observation)
             return [fallback] if fallback is not None else []
 
-    def _random_action_sequences(self, observation: dict[str, Any]) -> list[list[Any]]:
+    def _random_action_sequences(self, observation: dict[str, Any], *, horizon: int | None = None) -> list[list[Any]]:
         if self.candidate_count <= 0:
             return []
         try:
@@ -754,10 +796,11 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
 
             low, high, shape = action_bounds(observation)
             rng = self._rng if self._rng is not None else np.random.default_rng(self.random_seed)
+            horizon = max(1, int(horizon or self.rollout_horizon))
             sequences: list[list[Any]] = []
             for _ in range(self.candidate_count):
                 sequence = []
-                for _ in range(self.rollout_horizon):
+                for _ in range(horizon):
                     sequence.append(rng.uniform(low=low, high=high, size=shape))
                 sequences.append(sequence)
             return sequences

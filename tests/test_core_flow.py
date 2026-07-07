@@ -528,6 +528,29 @@ def test_mujoco_pusher_scaled_guided_plans_emit_stable_labels():
     assert all(len(plan.sequence) == 5 for plan in plans)
     assert expert.metadata()["pusher_action_scales"] == [0.5, 1.0, 1.5, 2.0]
     assert expert.metadata()["pusher_finish_scales"] == [0.05, 0.1, 0.2, 0.35]
+    assert expert.metadata()["pusher_planning_horizon"] == 10
+
+
+def test_mujoco_pusher_candidate_plans_use_longer_planning_horizon():
+    from nyssa_bench.experts.base import MuJoCoHeuristicExpertProvider
+
+    task = Suite.load("mujoco_control_v0").filter_tasks(["mujoco_pusher"]).tasks[0]
+    expert = MuJoCoHeuristicExpertProvider(rollout_horizon=5, candidate_count=0)
+    engine = _FakeMuJoCoEngine()
+    observation = {
+        "raw": [1.0, -1.0],
+        "action_space": {
+            "type": "box",
+            "shape": [2],
+            "low": [-1.0, -1.0],
+            "high": [1.0, 1.0],
+        },
+    }
+
+    plans = expert._candidate_rollout_plans(observation, include_zero=True, task=task, engine=engine)
+
+    assert any(plan.label.startswith("pusher_push") for plan in plans)
+    assert {len(plan.sequence) for plan in plans} == {10}
 
 
 def test_mujoco_pusher_recovery_commits_only_sequential_macros():
