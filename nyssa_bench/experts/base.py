@@ -280,6 +280,10 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             os.getenv("NYSSA_MUJOCO_PUSHER_ACTION_SCALES", "0.5,1.0,1.5,2.0"),
             default=[1.0],
         )
+        self.pusher_finish_scales = _parse_float_list(
+            os.getenv("NYSSA_MUJOCO_PUSHER_FINISH_SCALES", "0.05,0.1,0.2,0.35"),
+            default=[0.1],
+        )
         self._rng: Any | None = None
         self._bounds = BoundsVerifierExpertProvider()
         self.last_plan_details: dict[str, Any] | None = None
@@ -395,6 +399,7 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
             "min_margin": self.min_margin,
             "pusher_recovery_commit_labels": sorted(self.pusher_recovery_commit_labels),
             "pusher_action_scales": self.pusher_action_scales,
+            "pusher_finish_scales": self.pusher_finish_scales,
         }
 
     def _rollout_score_against_candidates(
@@ -640,6 +645,20 @@ class MuJoCoHeuristicExpertProvider(ExpertProvider):
                         for index in range(self.rollout_horizon)
                     ]
                     plans.append(_RolloutPlan(f"pusher_alternating_approach_push_{suffix}", alternating))
+            if push is not None:
+                zero = np.zeros_like(np.asarray(push, dtype=float))
+                plans.append(_RolloutPlan("pusher_finish_settle", [zero] * self.rollout_horizon))
+                for scale in self.pusher_finish_scales:
+                    suffix = _scale_label(scale)
+                    scaled_push = _scale_action(push, scale, low, high)
+                    for pulse_count in sorted({1, 2, max(1, self.rollout_horizon // 2)}):
+                        sequence = [scaled_push] * pulse_count + [zero] * max(0, self.rollout_horizon - pulse_count)
+                        plans.append(
+                            _RolloutPlan(
+                                f"pusher_finish_push_settle_{suffix}_pulse{pulse_count}",
+                                sequence[: self.rollout_horizon],
+                            )
+                        )
             return [plan for plan in plans if len(plan.sequence) >= self.rollout_horizon]
         except Exception:
             return []

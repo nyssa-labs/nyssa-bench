@@ -523,8 +523,11 @@ def test_mujoco_pusher_scaled_guided_plans_emit_stable_labels():
     assert "pusher_push_s1" in labels
     assert "pusher_approach_then_push_s1_split2" in labels
     assert "pusher_alternating_approach_push_s2" in labels
+    assert "pusher_finish_settle" in labels
+    assert "pusher_finish_push_settle_s0p1_pulse1" in labels
     assert all(len(plan.sequence) == 5 for plan in plans)
     assert expert.metadata()["pusher_action_scales"] == [0.5, 1.0, 1.5, 2.0]
+    assert expert.metadata()["pusher_finish_scales"] == [0.05, 0.1, 0.2, 0.35]
 
 
 def test_mujoco_pusher_recovery_commits_only_sequential_macros():
