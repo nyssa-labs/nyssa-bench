@@ -553,6 +553,60 @@ def test_cli_imports_maniskill_demos(tmp_path: Path):
     assert (out / "maniskill_pick_cube" / "episodes.json").exists()
 
 
+def test_cli_collects_maniskill_demos_with_template(tmp_path: Path):
+    pytest.importorskip("h5py")
+
+    generator = tmp_path / "write_demo.py"
+    generator.write_text(
+        """
+import sys
+from pathlib import Path
+
+import h5py
+import numpy as np
+
+env_id, raw_task_dir = sys.argv[1], Path(sys.argv[2])
+raw_task_dir.mkdir(parents=True, exist_ok=True)
+with h5py.File(raw_task_dir / f"{env_id}.h5", "w") as handle:
+    handle.attrs["env_id"] = env_id
+    traj = handle.create_group("traj_0")
+    traj.attrs["episode_seed"] = 3
+    traj.create_dataset("actions", data=np.zeros((2, 3), dtype=np.float32))
+    traj.create_dataset("success", data=np.asarray([False, True]))
+""".strip(),
+        encoding="utf-8",
+    )
+    raw_dir = tmp_path / "raw"
+    out = tmp_path / "imported"
+    template = f"python {generator} {{env_id}} {{raw_task_dir}}"
+
+    assert (
+        main(
+            [
+                "collect-maniskill-demos",
+                "--env-ids",
+                "PickCube-v1",
+                "--num-traj",
+                "1",
+                "--raw-dir",
+                str(raw_dir),
+                "--out",
+                str(out),
+                "--command-template",
+                template,
+            ]
+        )
+        == 0
+    )
+
+    episodes = json.loads((out / "episodes.json").read_text(encoding="utf-8"))
+    collect_manifest = json.loads((out / "collect_manifest.json").read_text(encoding="utf-8"))
+    assert len(episodes) == 1
+    assert episodes[0]["task_id"] == "maniskill_pick_cube"
+    assert collect_manifest["failure_count"] == 0
+    assert "PickCube-v1" in collect_manifest["runs"][0]["command"]
+
+
 def test_cli_writes_robomimic_config(tmp_path: Path):
     data = tmp_path / "data.hdf5"
     data.write_bytes(b"")

@@ -17,6 +17,7 @@ from nyssa_bench.datasets.export_jsonl import export_jsonl
 from nyssa_bench.datasets.export_lerobot import export_lerobot
 from nyssa_bench.datasets.export_parquet import export_parquet
 from nyssa_bench.datasets.export_robomimic import export_robomimic_hdf5
+from nyssa_bench.datasets.collect_maniskill import collect_maniskill_demos
 from nyssa_bench.datasets.import_maniskill import import_maniskill_demos
 from nyssa_bench.datasets.recovery_training import train_recovery_bc
 from nyssa_bench.reports.comparison import compare_runs, save_comparison_report, save_leaderboard
@@ -155,6 +156,14 @@ def main(argv: list[str] | None = None) -> int:
     import_maniskill_parser = subparsers.add_parser("import-maniskill-demos")
     import_maniskill_parser.add_argument("--input", required=True)
     import_maniskill_parser.add_argument("--out", required=True)
+
+    collect_maniskill_parser = subparsers.add_parser("collect-maniskill-demos")
+    collect_maniskill_parser.add_argument("--out", required=True)
+    collect_maniskill_parser.add_argument("--raw-dir", required=True)
+    collect_maniskill_parser.add_argument("--env-ids", nargs="+", default=["PickCube-v1", "PushCube-v1", "StackCube-v1"])
+    collect_maniskill_parser.add_argument("--num-traj", type=int, default=100)
+    collect_maniskill_parser.add_argument("--command-template")
+    collect_maniskill_parser.add_argument("--continue-on-error", action="store_true")
 
     validate_parser = subparsers.add_parser("validate")
     validate_parser.add_argument("target")
@@ -327,6 +336,19 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "import-maniskill-demos":
         paths = import_maniskill_demos(args.input, args.out)
+        for label, path in paths.items():
+            print(f"{label}: {path}")
+        return 0
+
+    if args.command == "collect-maniskill-demos":
+        paths = collect_maniskill_demos(
+            out=args.out,
+            raw_dir=args.raw_dir,
+            env_ids=args.env_ids,
+            num_traj=args.num_traj,
+            command_template=args.command_template,
+            continue_on_error=args.continue_on_error,
+        )
         for label, path in paths.items():
             print(f"{label}: {path}")
         return 0

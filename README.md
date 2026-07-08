@@ -481,10 +481,23 @@ Import official ManiSkill motion-planning demonstrations before training
 planner-backed learned baselines:
 
 ```bash
+uv run nyssa collect-maniskill-demos \
+  --env-ids PickCube-v1 PushCube-v1 StackCube-v1 \
+  --num-traj 100 \
+  --raw-dir demos/maniskill_motionplanning_raw \
+  --out benchmark_results/maniskill_manipulation_v0_planner_demos
+
 uv run nyssa import-maniskill-demos \
   --input demos/maniskill_motionplanning \
   --out benchmark_results/maniskill_manipulation_v0_planner_demos
 ```
+
+`collect-maniskill-demos` runs ManiSkill's Panda motion-planning example and
+then imports the generated HDF5 files into Nyssa. If your installed ManiSkill
+version uses a different generator command, override it with
+`--command-template` or `NYSSA_MANISKILL_DEMO_COMMAND`. The template can use
+`{python}`, `{env_id}`, `{task_id}`, `{num_traj}`, `{raw_dir}`, and
+`{raw_task_dir}` placeholders.
 
 Evaluate behavior-cloned policies from those planner demos with the
 planner-aligned suite:
