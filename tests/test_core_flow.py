@@ -56,6 +56,19 @@ def _observation() -> dict[str, Any]:
     }
 
 
+def _maniskill_state_observation(extra: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "raw": {"agent": {"qpos": [[0.0] * 9], "qvel": [[0.0] * 9]}, "extra": extra},
+        "action_space": {
+            "type": "box",
+            "shape": [7],
+            "low": [-1.0] * 7,
+            "high": [1.0] * 7,
+            "dtype": "float32",
+        },
+    }
+
+
 def _register_unit_engine() -> None:
     get_plugin_registry().engines["unit_real"] = UnitEngine
 
@@ -343,6 +356,70 @@ def test_builtin_expert_providers_emit_actions():
     scripted = make_expert_provider("maniskill-scripted")
     assert scripted.act(observation, task=task) is not None
     assert scripted.metadata()["provider_id"] == "maniskill-scripted"
+
+
+def test_maniskill_scripted_pick_cube_closes_near_low_grasp_target():
+    from nyssa_bench.baselines.scripted_maniskill import ManiSkillScriptedHeuristic
+
+    task = Suite.load("maniskill_smoke_v0").filter_tasks(["maniskill_pick_cube"]).tasks[0]
+    controller = ManiSkillScriptedHeuristic()
+    controller.reset(task=task)
+    observation = _maniskill_state_observation(
+        {
+            "is_grasped": [False],
+            "tcp_pose": [[0.0, 0.0, 0.041, 1.0, 0.0, 0.0, 0.0]],
+            "obj_pose": [[0.0, 0.0, 0.02, 1.0, 0.0, 0.0, 0.0]],
+            "goal_pos": [[0.1, 0.1, 0.28]],
+        }
+    )
+
+    action = np.asarray(controller.act(observation), dtype=float).reshape(-1)
+
+    assert action[2] < 0.0
+    assert action[-1] == -1.0
+
+
+def test_maniskill_scripted_push_cube_moves_behind_then_through_object():
+    from nyssa_bench.baselines.scripted_maniskill import ManiSkillScriptedHeuristic
+
+    task = Suite.load("maniskill_smoke_v0").filter_tasks(["maniskill_push_cube"]).tasks[0]
+    controller = ManiSkillScriptedHeuristic()
+    controller.reset(task=task)
+    observation = _maniskill_state_observation(
+        {
+            "tcp_pose": [[-0.075, 0.0, 0.038, 1.0, 0.0, 0.0, 0.0]],
+            "obj_pose": [[0.0, 0.0, 0.02, 1.0, 0.0, 0.0, 0.0]],
+            "goal_pos": [[0.2, 0.0, 0.001]],
+        }
+    )
+
+    action = np.asarray(controller.act(observation), dtype=float).reshape(-1)
+
+    assert action[0] > 0.0
+    assert abs(action[1]) < 1e-6
+    assert action[-1] == 1.0
+
+
+def test_maniskill_scripted_stack_cube_uses_cube_a_and_cube_b_keys():
+    from nyssa_bench.baselines.scripted_maniskill import ManiSkillScriptedHeuristic
+
+    task = Suite.load("maniskill_smoke_v0").filter_tasks(["maniskill_stack_cube"]).tasks[0]
+    controller = ManiSkillScriptedHeuristic()
+    controller.reset(task=task)
+    observation = _maniskill_state_observation(
+        {
+            "is_cubeA_grasped": [True],
+            "tcp_pose": [[0.0, 0.0, 0.12, 1.0, 0.0, 0.0, 0.0]],
+            "cubeA_pose": [[0.0, 0.0, 0.08, 1.0, 0.0, 0.0, 0.0]],
+            "cubeB_pose": [[0.1, 0.0, 0.02, 1.0, 0.0, 0.0, 0.0]],
+        }
+    )
+
+    action = np.asarray(controller.act(observation), dtype=float).reshape(-1)
+
+    assert action[0] > 0.0
+    assert action[2] < 0.0
+    assert action[-1] == -1.0
 
 
 def test_mujoco_expert_uses_rollout_scoring_and_restores_state():
