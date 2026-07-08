@@ -104,6 +104,13 @@ brew install glfw
 
 ManiSkill video-backed result packs are expected to run on Linux machines with
 a working NVIDIA/Vulkan stack.
+On managed notebooks such as Lightning AI, ManiSkill may fail with
+`Failed to find a supported physical device "cuda:0"` if the session has no
+compatible render device. Select a GPU/Vulkan-capable runtime, or set
+`NYSSA_MANISKILL_RENDER_DEVICE` and `NYSSA_MANISKILL_SIM_BACKEND` before
+launching `nyssa` to match the device exposed by the host. For non-public
+debugging on CPU-only sessions, set `NYSSA_MANISKILL_RENDER_MODE=none` and use
+`--no-replay`; public claims still require replay videos.
 
 Do not use `pip install -e ".[full]"` for normal benchmark runs. The `full`
 extra intentionally pulls heavy experimental stacks, including Genesis,

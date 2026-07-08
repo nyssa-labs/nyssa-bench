@@ -164,6 +164,34 @@ def test_mujoco_adapter_respects_explicit_renderer(monkeypatch):
     assert "PYOPENGL_PLATFORM" not in os.environ
 
 
+def test_maniskill_adapter_accepts_env_overrides(monkeypatch):
+    from nyssa_bench.engines.maniskill_adapter import _maniskill_env_kwargs
+
+    task = Suite.load("maniskill_smoke_v0").tasks[0]
+    monkeypatch.setenv("NYSSA_MANISKILL_RENDER_MODE", "rgb_array")
+    monkeypatch.setenv("NYSSA_MANISKILL_RENDER_DEVICE", "cpu")
+    monkeypatch.setenv("NYSSA_MANISKILL_SIM_BACKEND", "cpu")
+
+    kwargs = _maniskill_env_kwargs(task)
+
+    assert kwargs["render_mode"] == "rgb_array"
+    assert kwargs["render_device"] == "cpu"
+    assert kwargs["sim_backend"] == "cpu"
+    assert kwargs["obs_mode"] == task.success["obs_mode"]
+    assert kwargs["control_mode"] == task.success["control_mode"]
+
+
+def test_maniskill_adapter_can_disable_render_mode(monkeypatch):
+    from nyssa_bench.engines.maniskill_adapter import _maniskill_env_kwargs
+
+    task = Suite.load("maniskill_smoke_v0").tasks[0]
+    monkeypatch.setenv("NYSSA_MANISKILL_RENDER_MODE", "none")
+
+    kwargs = _maniskill_env_kwargs(task)
+
+    assert "render_mode" not in kwargs
+
+
 def test_runner_writes_artifacts(tmp_path: Path):
     _register_unit_engine()
     suite = Suite.load("tabletop_manipulation_v0")

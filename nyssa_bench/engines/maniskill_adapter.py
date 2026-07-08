@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from nyssa_bench.core.task import TaskSpec
@@ -25,12 +26,7 @@ class ManiSkillEngine(NyssaEngine):
             raise RuntimeError("Install NyssaBench with the ManiSkill extra: pip install -e '.[maniskill]'") from exc
 
         env_id = _resolve_env_id(task_spec, "maniskill")
-        env_kwargs = {
-            "render_mode": task_spec.success.get("render_mode", "rgb_array"),
-        }
-        for key in ("obs_mode", "control_mode", "robot_uids", "sim_backend"):
-            if key in task_spec.success:
-                env_kwargs[key] = task_spec.success[key]
+        env_kwargs = _maniskill_env_kwargs(task_spec)
         self.env = gym.make(env_id, **env_kwargs)
 
     def reset(self, seed: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -92,6 +88,37 @@ def _resolve_env_id(task_spec: TaskSpec, engine: str) -> str:
         f"Task '{task_spec.task_id}' is missing success.engine_env_ids.{engine}. "
         "Real simulator tasks must define explicit environment mappings."
     )
+
+
+def _maniskill_env_kwargs(task_spec: TaskSpec) -> dict[str, Any]:
+    render_mode = _env_or_task_value(
+        "NYSSA_MANISKILL_RENDER_MODE",
+        task_spec,
+        "render_mode",
+        "rgb_array",
+    )
+    env_kwargs: dict[str, Any] = {}
+    if str(render_mode).lower() not in {"", "none", "null"}:
+        env_kwargs["render_mode"] = render_mode
+    for env_name, key in (
+        ("NYSSA_MANISKILL_OBS_MODE", "obs_mode"),
+        ("NYSSA_MANISKILL_CONTROL_MODE", "control_mode"),
+        ("NYSSA_MANISKILL_ROBOT_UIDS", "robot_uids"),
+        ("NYSSA_MANISKILL_SIM_BACKEND", "sim_backend"),
+        ("NYSSA_MANISKILL_RENDER_DEVICE", "render_device"),
+        ("NYSSA_MANISKILL_SHADER_DIR", "shader_dir"),
+    ):
+        value = _env_or_task_value(env_name, task_spec, key, None)
+        if value is not None and str(value).lower() not in {"", "none", "null"}:
+            env_kwargs[key] = value
+    return env_kwargs
+
+
+def _env_or_task_value(env_name: str, task_spec: TaskSpec, key: str, default: Any) -> Any:
+    value = os.getenv(env_name)
+    if value is not None:
+        return value
+    return task_spec.success.get(key, default)
 
 
 def _extract_success(info: dict[str, Any], task_spec: TaskSpec | None) -> bool:
