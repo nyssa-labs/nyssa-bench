@@ -157,16 +157,29 @@ def _episode_from_group(
 
 
 def _observation_at(group: Any, index: int, step_count: int) -> dict[str, Any]:
+    observation_payload: Any | None = None
     for key in ("obs", "observation", "observations"):
         if key in group:
             observation = _slice_timed_value(group[key], index, step_count)
             if _has_payload(observation):
-                return observation
+                observation_payload = observation
+                break
+
+    state_payloads: dict[str, Any] = {}
     for key in ("env_states", "states", "state"):
         if key in group:
             state = _slice_timed_value(group[key], index, step_count)
             if _has_payload(state):
-                return {key: state}
+                state_payloads[key] = state
+
+    if observation_payload is not None and state_payloads:
+        if isinstance(observation_payload, dict):
+            return {**observation_payload, **state_payloads}
+        return {"observation": observation_payload, **state_payloads}
+    if observation_payload is not None:
+        return observation_payload
+    if state_payloads:
+        return state_payloads
     return {"timestep": index}
 
 

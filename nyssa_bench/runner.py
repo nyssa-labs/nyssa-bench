@@ -171,6 +171,7 @@ class PolicyRunner:
         seed: int,
     ) -> EpisodeResult:
         observation, _ = engine.reset(seed=seed)
+        observation = _restore_policy_initial_state(engine, policy, observation)
         steps: list[StepRecord] = []
         frames: list[Any] = []
         last_info: dict[str, Any] = {}
@@ -430,6 +431,23 @@ def _safe_get_state(engine: Any, *, observation: dict[str, Any] | None = None) -
     if observation is not None:
         state_dict = {**state_dict, "observation": observation}
     return state_dict
+
+
+def _restore_policy_initial_state(engine: Any, policy: PolicyLike, observation: dict[str, Any]) -> dict[str, Any]:
+    initial_state = getattr(policy, "initial_state", None)
+    if initial_state is None:
+        return observation
+    try:
+        state = initial_state(observation)
+    except TypeError:
+        state = initial_state()
+    if state is None:
+        return observation
+    set_state = getattr(engine, "set_state", None)
+    if set_state is None:
+        raise RuntimeError("Policy requested an initial simulator state, but the selected engine cannot restore state.")
+    restored_observation = set_state(state)
+    return restored_observation if restored_observation is not None else observation
 
 
 def _policy_metadata(policy: Any) -> dict[str, Any]:

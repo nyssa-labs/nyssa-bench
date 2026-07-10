@@ -593,14 +593,24 @@ def test_demo_replay_policy_routes_joint_task_and_replays_actions(tmp_path: Path
                 {
                     "success": True,
                     "steps": [
-                        {"observation": _observation_with_action_size(2, raw=[0.0, 0.0]), "action": [0.25, -0.25]},
+                        {
+                            "observation": _observation_with_action_size(
+                                2, raw={"obs": [0.0, 0.0], "env_states": [10.0, 10.0]}
+                            ),
+                            "action": [0.25, -0.25],
+                        },
                         {"observation": _observation_with_action_size(2, raw=[0.1, 0.1]), "action": [0.75, -0.75]},
                     ],
                 },
                 {
                     "success": True,
                     "steps": [
-                        {"observation": _observation_with_action_size(2, raw=[5.0, 5.0]), "action": [-0.25, 0.25]},
+                        {
+                            "observation": _observation_with_action_size(
+                                2, raw={"obs": [5.0, 5.0], "env_states": [20.0, 20.0]}
+                            ),
+                            "action": [-0.25, 0.25],
+                        },
                         {"observation": _observation_with_action_size(2, raw=[5.1, 5.1]), "action": [-0.75, 0.75]},
                     ],
                 }
@@ -613,6 +623,7 @@ def test_demo_replay_policy_routes_joint_task_and_replays_actions(tmp_path: Path
     observation = _observation_with_action_size(2, raw=[4.9, 5.2])
 
     policy.reset(task=task, seed=0)
+    assert policy.initial_state(observation) == [20.0, 20.0]
     first = policy.act(observation)
     second = policy.act(observation)
     repeated = policy.act(observation)
@@ -666,6 +677,7 @@ def test_cli_imports_maniskill_demos(tmp_path: Path):
         traj.create_dataset("success", data=np.asarray([False, False, True]))
         obs = traj.create_group("obs")
         obs.create_dataset("agent_qpos", data=np.zeros((4, 9), dtype=np.float32))
+        traj.create_dataset("env_states", data=np.asarray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]))
 
     out = tmp_path / "imported"
     assert main(["import-maniskill-demos", "--input", str(demos), "--out", str(out)]) == 0
@@ -677,6 +689,7 @@ def test_cli_imports_maniskill_demos(tmp_path: Path):
     assert episodes[0]["success"] is True
     assert len(episodes[0]["steps"]) == 3
     assert episodes[0]["steps"][0]["observation"]["action_space"]["shape"] == [4]
+    assert episodes[0]["steps"][0]["observation"]["raw"]["env_states"] == [1.0, 2.0]
     assert (out / "maniskill_pick_cube" / "episodes.json").exists()
 
 

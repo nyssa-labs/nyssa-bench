@@ -205,6 +205,58 @@ def test_maniskill_adapter_can_disable_render_mode(monkeypatch):
     assert "render_mode" not in kwargs
 
 
+def test_runner_restores_policy_initial_state_before_first_step():
+    class StateRestoreEngine(NyssaEngine):
+        max_steps = 1
+        restored_states: list[Any] = []
+
+        def __init__(self) -> None:
+            self.state = None
+
+        def load_task(self, task_spec: Any) -> None:
+            self.task_spec = task_spec
+
+        def reset(self, seed: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
+            return _observation(), {"seed": seed}
+
+        def set_state(self, state: Any) -> dict[str, Any]:
+            self.state = state
+            self.restored_states.append(state)
+            return _observation()
+
+        def step(self, action: Any) -> tuple[dict[str, Any], float, bool, bool, dict[str, Any]]:
+            success = self.state == {"demo_state": [1.0, 2.0]}
+            return _observation(), 1.0, True, False, {"success": success}
+
+        def render(self) -> Any:
+            return None
+
+        def get_state(self) -> dict[str, Any]:
+            return {"raw": self.state}
+
+        def close(self) -> None:
+            return None
+
+    class StateReplayPolicy:
+        def reset(self, task: Any | None = None, seed: int | None = None) -> None:
+            return None
+
+        def initial_state(self, observation: dict[str, Any]) -> dict[str, Any]:
+            return {"demo_state": [1.0, 2.0]}
+
+        def act(self, observation: dict[str, Any]) -> list[float]:
+            return [0.0]
+
+    StateRestoreEngine.restored_states = []
+    get_plugin_registry().engines["state_restore_unit"] = StateRestoreEngine
+    suite = Suite.load("tabletop_manipulation_v0").filter_tasks(["pick_cube"])
+
+    report = PolicyRunner(policy=StateReplayPolicy(), engine="state_restore_unit", episodes=1, capture_replay=False).evaluate(suite)
+
+    assert report.summary["success_rate"] == 1.0
+    assert StateRestoreEngine.restored_states == [{"demo_state": [1.0, 2.0]}]
+
+
 def test_runner_writes_artifacts(tmp_path: Path):
     _register_unit_engine()
     suite = Suite.load("tabletop_manipulation_v0")

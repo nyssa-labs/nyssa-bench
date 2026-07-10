@@ -51,6 +51,17 @@ class ManiSkillEngine(NyssaEngine):
             return {"raw": self.env.get_state()}
         return {}
 
+    def set_state(self, state: Any) -> dict[str, Any] | None:
+        self._require_env()
+        target = self.env
+        if not hasattr(target, "set_state") and hasattr(target, "unwrapped"):
+            target = target.unwrapped
+        if not hasattr(target, "set_state"):
+            raise RuntimeError("Loaded ManiSkill environment does not support set_state.")
+        target.set_state(_to_numpy_state(state))
+        observation = _get_observation_after_state_restore(self.env)
+        return wrap_observation(self.env, observation) if observation is not None else None
+
     def close(self) -> None:
         if self.env is not None:
             self.env.close()
@@ -150,3 +161,35 @@ def _as_bool(value: Any) -> bool:
     if hasattr(value, "all"):
         return bool(value.all())
     return bool(value)
+
+
+def _to_numpy_state(value: Any) -> Any:
+    try:
+        import numpy as np
+    except ImportError:
+        return value
+    if isinstance(value, dict):
+        if set(value) == {"raw"}:
+            return _to_numpy_state(value["raw"])
+        for key in ("env_states", "states", "state"):
+            if key in value:
+                return _to_numpy_state(value[key])
+        return {key: _to_numpy_state(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return np.asarray(value)
+    return value
+
+
+def _get_observation_after_state_restore(env: Any) -> Any | None:
+    for target in (env, getattr(env, "unwrapped", None)):
+        if target is None:
+            continue
+        for name in ("get_obs", "_get_obs"):
+            method = getattr(target, name, None)
+            if method is None:
+                continue
+            try:
+                return method()
+            except TypeError:
+                continue
+    return None
