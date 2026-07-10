@@ -27,6 +27,7 @@ class ManiSkillEngine(NyssaEngine):
 
         env_id = _resolve_env_id(task_spec, "maniskill")
         env_kwargs = _maniskill_env_kwargs(task_spec)
+        env_kwargs.setdefault("max_episode_steps", self.max_steps)
         self.env = gym.make(env_id, **env_kwargs)
 
     def reset(self, seed: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -124,6 +125,9 @@ def _maniskill_env_kwargs(task_spec: TaskSpec) -> dict[str, Any]:
         value = _env_or_task_value(env_name, task_spec, key, None)
         if value is not None and str(value).lower() not in {"", "none", "null"}:
             env_kwargs[key] = value
+    max_episode_steps = _env_or_task_value("NYSSA_MANISKILL_MAX_EPISODE_STEPS", task_spec, "max_steps", None)
+    if max_episode_steps is not None and str(max_episode_steps).lower() not in {"", "none", "null"}:
+        env_kwargs["max_episode_steps"] = int(max_episode_steps)
     return env_kwargs
 
 

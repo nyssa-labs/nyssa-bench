@@ -192,6 +192,18 @@ def test_maniskill_adapter_accepts_env_overrides(monkeypatch):
     assert kwargs["sim_backend"] == "cpu"
     assert kwargs["obs_mode"] == task.success["obs_mode"]
     assert kwargs["control_mode"] == task.success["control_mode"]
+    assert kwargs["max_episode_steps"] == task.success["max_steps"]
+
+
+def test_maniskill_adapter_allows_max_episode_step_override(monkeypatch):
+    from nyssa_bench.engines.maniskill_adapter import _maniskill_env_kwargs
+
+    task = Suite.load("maniskill_planner_bc_v0").filter_tasks(["maniskill_stack_cube_joint"]).tasks[0]
+    monkeypatch.setenv("NYSSA_MANISKILL_MAX_EPISODE_STEPS", "180")
+
+    kwargs = _maniskill_env_kwargs(task)
+
+    assert kwargs["max_episode_steps"] == 180
 
 
 def test_maniskill_adapter_can_disable_render_mode(monkeypatch):
