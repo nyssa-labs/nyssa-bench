@@ -503,6 +503,12 @@ Evaluate behavior-cloned policies from those planner demos with the
 planner-aligned suite:
 
 ```bash
+uv run nyssa train-bc \
+  benchmark_results/maniskill_manipulation_v0_planner_demos/maniskill_pick_cube/episodes.json \
+  --out checkpoints/bc_by_task/maniskill_pick_cube.json \
+  --model knn \
+  --feature-dim 512
+
 NYSSA_BC_CHECKPOINT=checkpoints/bc_policy.json \
 uv run nyssa run \
   --suite maniskill_planner_bc_v0 \

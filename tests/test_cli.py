@@ -35,9 +35,9 @@ def _observation() -> dict[str, Any]:
     return {"raw": [0.0], "action_space": {"type": "box", "shape": [1], "low": [-1.0], "high": [1.0]}}
 
 
-def _observation_with_action_size(size: int) -> dict[str, Any]:
+def _observation_with_action_size(size: int, raw: list[float] | None = None) -> dict[str, Any]:
     return {
-        "raw": [0.0],
+        "raw": raw if raw is not None else [0.0],
         "action_space": {"type": "box", "shape": [size], "low": [-1.0] * size, "high": [1.0] * size},
     }
 
@@ -521,6 +521,65 @@ def test_task_routed_linear_bc_can_zero_fill_missing_task(tmp_path: Path):
     action = policy.predict_action(observation)
 
     assert action.tolist() == [0.2, 0.0]
+
+
+def test_task_routed_bc_loads_knn_checkpoint(tmp_path: Path):
+    import numpy as np
+
+    from nyssa_bench.baselines.simple_bc import KNNBCPolicy, TaskRoutedLinearBCPolicy
+
+    checkpoint_dir = tmp_path / "checkpoints"
+    KNNBCPolicy(
+        features=np.asarray([[0.0, 0.0], [3.0, 3.0]], dtype=float),
+        actions=np.asarray([[0.4], [-0.4]], dtype=float),
+        feature_mean=np.asarray([0.0, 0.0], dtype=float),
+        feature_scale=np.asarray([1.0, 1.0], dtype=float),
+        feature_dim=2,
+        action_size=1,
+        k=1,
+    ).save(checkpoint_dir / "maniskill_pick_cube.json")
+    policy = TaskRoutedLinearBCPolicy(checkpoint_dir)
+    task = type("Task", (), {"task_id": "maniskill_pick_cube_joint"})()
+    policy.reset(task=task)
+    observation = {
+        "raw": [0.1, 0.1],
+        "action_space": {
+            "type": "box",
+            "shape": [1],
+            "low": [-1.0],
+            "high": [1.0],
+        },
+    }
+
+    action = policy.predict_action(observation)
+
+    assert action.tolist() == pytest.approx([0.4])
+
+
+def test_cli_train_bc_knn(tmp_path: Path):
+    episodes = tmp_path / "episodes.json"
+    episodes.write_text(
+        json.dumps(
+            [
+                {
+                    "task_id": "unit",
+                    "steps": [
+                        {"observation": _observation_with_action_size(1, raw=[0.0, 0.0]), "action": [0.1]},
+                        {"observation": _observation_with_action_size(1, raw=[5.0, 5.0]), "action": [0.9]},
+                    ],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "knn.json"
+
+    assert main(["train-bc", str(episodes), "--out", str(out), "--model", "knn", "--feature-dim", "2"]) == 0
+
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["format"] == "nyssa-knn-bc-v1"
+    assert payload["feature_dim"] == 2
+    assert len(payload["features"]) == 2
 
 
 def test_cli_imports_maniskill_demos(tmp_path: Path):

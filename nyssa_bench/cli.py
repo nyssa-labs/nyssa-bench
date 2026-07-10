@@ -10,7 +10,7 @@ import yaml
 from nyssa_bench.core.registry import ENGINE_REGISTRY, ENGINE_SUPPORT_TIER, POLICY_REGISTRY, POLICY_SUPPORT_TIER
 from nyssa_bench.core.suite import Suite, list_suites
 from nyssa_bench.core.task import TaskSpec, list_tasks
-from nyssa_bench.baselines.simple_bc import train_linear_bc
+from nyssa_bench.baselines.simple_bc import train_knn_bc, train_linear_bc
 from nyssa_bench.datasets.export_hdf5 import export_hdf5
 from nyssa_bench.datasets.export_json import export_json
 from nyssa_bench.datasets.export_jsonl import export_jsonl
@@ -126,6 +126,8 @@ def main(argv: list[str] | None = None) -> int:
     train_bc_parser.add_argument("--out", default="checkpoints/bc_policy.json")
     train_bc_parser.add_argument("--feature-dim", type=int, default=256)
     train_bc_parser.add_argument("--ridge", type=float, default=1e-3)
+    train_bc_parser.add_argument("--model", choices=["linear", "knn"], default="linear")
+    train_bc_parser.add_argument("--knn-k", type=int, default=1)
 
     train_recovery_bc_parser = subparsers.add_parser("train-recovery-bc")
     train_recovery_bc_parser.add_argument("sources", nargs="+")
@@ -287,7 +289,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "train-bc":
-        out = _train_bc_from_episode_files(args.episodes, args.out, feature_dim=args.feature_dim, ridge=args.ridge)
+        out = _train_bc_from_episode_files(
+            args.episodes,
+            args.out,
+            feature_dim=args.feature_dim,
+            ridge=args.ridge,
+            model=args.model,
+            knn_k=args.knn_k,
+        )
         print(f"bc_checkpoint: {out}")
         return 0
 
@@ -516,9 +525,11 @@ def _train_bc_from_episode_files(
     *,
     feature_dim: int,
     ridge: float,
+    model: str,
+    knn_k: int,
 ) -> Path:
     if len(episodes_paths) == 1:
-        return train_linear_bc(episodes_paths[0], out, feature_dim=feature_dim, ridge=ridge)
+        return _train_single_bc(episodes_paths[0], out, feature_dim=feature_dim, ridge=ridge, model=model, knn_k=knn_k)
 
     import json
     import tempfile
@@ -530,12 +541,28 @@ def _train_bc_from_episode_files(
         json.dump(merged, handle)
         merged_path = Path(handle.name)
     try:
-        return train_linear_bc(merged_path, out, feature_dim=feature_dim, ridge=ridge)
+        return _train_single_bc(merged_path, out, feature_dim=feature_dim, ridge=ridge, model=model, knn_k=knn_k)
     finally:
         try:
             merged_path.unlink()
         except OSError:
             pass
+
+
+def _train_single_bc(
+    episodes_path: str | Path,
+    out: str | Path,
+    *,
+    feature_dim: int,
+    ridge: float,
+    model: str,
+    knn_k: int,
+) -> Path:
+    if model == "linear":
+        return train_linear_bc(episodes_path, out, feature_dim=feature_dim, ridge=ridge)
+    if model == "knn":
+        return train_knn_bc(episodes_path, out, feature_dim=feature_dim, k=knn_k)
+    raise ValueError(f"Unsupported BC model: {model}")
 
 
 def _load_suite(args: argparse.Namespace) -> Suite:

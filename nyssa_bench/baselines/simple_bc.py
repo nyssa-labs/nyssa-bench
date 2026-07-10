@@ -46,12 +46,71 @@ class LinearBCPolicy:
         return path
 
 
+class KNNBCPolicy:
+    def __init__(
+        self,
+        features: np.ndarray,
+        actions: np.ndarray,
+        feature_mean: np.ndarray,
+        feature_scale: np.ndarray,
+        feature_dim: int,
+        action_size: int,
+        k: int = 1,
+    ) -> None:
+        self.features = features
+        self.actions = actions
+        self.feature_mean = feature_mean
+        self.feature_scale = np.where(np.abs(feature_scale) > 1e-8, feature_scale, 1.0)
+        self.feature_dim = feature_dim
+        self.action_size = action_size
+        self.k = max(1, int(k))
+
+    def predict_action(self, observation: dict[str, Any]) -> Any:
+        features = flatten_observation(observation, self.feature_dim)
+        normalized = (features - self.feature_mean) / self.feature_scale
+        distances = np.sum((self.features - normalized) ** 2, axis=1)
+        k = min(self.k, len(distances))
+        indices = np.argpartition(distances, k - 1)[:k]
+        weights = 1.0 / np.maximum(distances[indices], 1e-8)
+        action = np.average(self.actions[indices], axis=0, weights=weights)
+        return fit_action_to_observation(action, observation)
+
+    @classmethod
+    def load(cls, path: str | Path) -> "KNNBCPolicy":
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        return cls(
+            features=np.asarray(payload["features"], dtype=float),
+            actions=np.asarray(payload["actions"], dtype=float),
+            feature_mean=np.asarray(payload["feature_mean"], dtype=float),
+            feature_scale=np.asarray(payload["feature_scale"], dtype=float),
+            feature_dim=int(payload["feature_dim"]),
+            action_size=int(payload["action_size"]),
+            k=int(payload.get("k", 1)),
+        )
+
+    def save(self, path: str | Path) -> Path:
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "format": "nyssa-knn-bc-v1",
+            "feature_dim": self.feature_dim,
+            "action_size": self.action_size,
+            "k": self.k,
+            "features": self.features.tolist(),
+            "actions": self.actions.tolist(),
+            "feature_mean": self.feature_mean.tolist(),
+            "feature_scale": self.feature_scale.tolist(),
+        }
+        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        return path
+
+
 class TaskRoutedLinearBCPolicy:
     def __init__(self, checkpoint_dir: str | Path, *, missing_task: str = "error") -> None:
         self.checkpoint_dir = Path(checkpoint_dir)
         self.missing_task = missing_task
         self.current_task_id: str | None = None
-        self._models: dict[str, LinearBCPolicy] = {}
+        self._models: dict[str, LinearBCPolicy | KNNBCPolicy] = {}
 
     def reset(self, task: Any | None = None, seed: int | None = None) -> None:
         self.current_task_id = str(getattr(task, "task_id", "")) or None
@@ -64,7 +123,7 @@ class TaskRoutedLinearBCPolicy:
         except KeyError:
             return _zero_action(observation)
 
-    def _model_for_task(self, task_id: str) -> LinearBCPolicy:
+    def _model_for_task(self, task_id: str) -> LinearBCPolicy | KNNBCPolicy:
         key = _checkpoint_key(task_id)
         if key not in self._models:
             path = self.checkpoint_dir / f"{key}.json"
@@ -75,7 +134,7 @@ class TaskRoutedLinearBCPolicy:
                     f"Task BC checkpoint not found for task '{task_id}': {path}. "
                     "Train one checkpoint per task under NYSSA_TASK_BC_DIR or set NYSSA_TASK_BC_MISSING=zero."
                 )
-            self._models[key] = LinearBCPolicy.load(path)
+            self._models[key] = load_bc_policy(path)
         return self._models[key]
 
 
@@ -86,20 +145,7 @@ def train_linear_bc(
     feature_dim: int = 256,
     ridge: float = 1e-3,
 ) -> Path:
-    rows_x: list[np.ndarray] = []
-    rows_y: list[np.ndarray] = []
-    action_size: int | None = None
-    for episode in json.loads(Path(episodes_path).read_text(encoding="utf-8")):
-        for step in episode.get("steps", []):
-            observation = step.get("observation", {})
-            low, high, shape = action_bounds(observation)
-            size = int(np.prod(shape))
-            action_size = action_size or size
-            rows_x.append(flatten_observation(observation, feature_dim))
-            rows_y.append(normalize_action(step.get("action"), action_size))
-    if not rows_x or action_size is None:
-        raise ValueError(f"No training steps found in {episodes_path}")
-
+    rows_x, rows_y, action_size = _episode_training_rows(episodes_path, feature_dim=feature_dim)
     x = np.vstack(rows_x)
     y = np.vstack(rows_y)
     x_aug = np.hstack([x, np.ones((x.shape[0], 1))])
@@ -114,14 +160,70 @@ def train_linear_bc(
     return policy.save(out)
 
 
-def create_bc_policy() -> LinearBCPolicy:
+def train_knn_bc(
+    episodes_path: str | Path,
+    out: str | Path,
+    *,
+    feature_dim: int = 256,
+    k: int = 1,
+) -> Path:
+    rows_x, rows_y, action_size = _episode_training_rows(episodes_path, feature_dim=feature_dim)
+    x = np.vstack(rows_x)
+    y = np.vstack(rows_y)
+    feature_mean = x.mean(axis=0)
+    feature_scale = x.std(axis=0)
+    normalized = (x - feature_mean) / np.where(np.abs(feature_scale) > 1e-8, feature_scale, 1.0)
+    policy = KNNBCPolicy(
+        features=normalized,
+        actions=y,
+        feature_mean=feature_mean,
+        feature_scale=feature_scale,
+        feature_dim=feature_dim,
+        action_size=action_size,
+        k=k,
+    )
+    return policy.save(out)
+
+
+def load_bc_policy(path: str | Path) -> LinearBCPolicy | KNNBCPolicy:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    checkpoint_format = str(payload.get("format", "nyssa-linear-bc-v1"))
+    if checkpoint_format == "nyssa-linear-bc-v1":
+        return LinearBCPolicy.load(path)
+    if checkpoint_format == "nyssa-knn-bc-v1":
+        return KNNBCPolicy.load(path)
+    raise RuntimeError(f"Unsupported BC checkpoint format: {checkpoint_format}")
+
+
+def create_bc_policy() -> LinearBCPolicy | KNNBCPolicy:
     checkpoint = os.getenv("NYSSA_BC_CHECKPOINT", "checkpoints/bc_policy.json")
     if not Path(checkpoint).exists():
         raise RuntimeError(
             f"BC checkpoint not found: {checkpoint}. Run `nyssa train-bc ... --out {checkpoint}` "
             "or set NYSSA_BC_POLICY=module:factory."
         )
-    return LinearBCPolicy.load(checkpoint)
+    return load_bc_policy(checkpoint)
+
+
+def _episode_training_rows(
+    episodes_path: str | Path,
+    *,
+    feature_dim: int,
+) -> tuple[list[np.ndarray], list[np.ndarray], int]:
+    rows_x: list[np.ndarray] = []
+    rows_y: list[np.ndarray] = []
+    action_size: int | None = None
+    for episode in json.loads(Path(episodes_path).read_text(encoding="utf-8")):
+        for step in episode.get("steps", []):
+            observation = step.get("observation", {})
+            _, _, shape = action_bounds(observation)
+            size = int(np.prod(shape))
+            action_size = action_size or size
+            rows_x.append(flatten_observation(observation, feature_dim))
+            rows_y.append(normalize_action(step.get("action"), action_size))
+    if not rows_x or action_size is None:
+        raise ValueError(f"No training steps found in {episodes_path}")
+    return rows_x, rows_y, action_size
 
 
 def create_task_bc_policy() -> TaskRoutedLinearBCPolicy:
