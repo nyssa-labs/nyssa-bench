@@ -205,6 +205,47 @@ def test_maniskill_adapter_can_disable_render_mode(monkeypatch):
     assert "render_mode" not in kwargs
 
 
+def test_maniskill_adapter_restores_structured_and_flat_states():
+    from nyssa_bench.engines.maniskill_adapter import ManiSkillEngine
+
+    class FakeActionSpace:
+        shape = (1,)
+        low = np.asarray([-1.0])
+        high = np.asarray([1.0])
+        dtype = np.float32
+
+    class FakeUnwrapped:
+        def __init__(self) -> None:
+            self.state_dict = None
+            self.state_vector = None
+
+        def set_state_dict(self, state: Any) -> None:
+            self.state_dict = state
+
+        def set_state(self, state: Any) -> None:
+            self.state_vector = state
+
+        def get_obs(self) -> list[float]:
+            return [0.0]
+
+    class FakeEnv:
+        action_space = FakeActionSpace()
+
+        def __init__(self) -> None:
+            self.unwrapped = FakeUnwrapped()
+
+    engine = ManiSkillEngine()
+    engine.env = FakeEnv()
+
+    structured_observation = engine.set_state({"env_states": {"actors": {"cube": [1.0, 2.0]}}})
+    flat_observation = engine.set_state([3.0, 4.0])
+
+    assert engine.env.unwrapped.state_dict["actors"]["cube"].tolist() == [1.0, 2.0]
+    assert engine.env.unwrapped.state_vector.tolist() == [3.0, 4.0]
+    assert structured_observation["raw"] == [0.0]
+    assert flat_observation["action_space"]["shape"] == [1]
+
+
 def test_runner_restores_policy_initial_state_before_first_step():
     class StateRestoreEngine(NyssaEngine):
         max_steps = 1

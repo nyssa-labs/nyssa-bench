@@ -53,12 +53,14 @@ class ManiSkillEngine(NyssaEngine):
 
     def set_state(self, state: Any) -> dict[str, Any] | None:
         self._require_env()
-        target = self.env
-        if not hasattr(target, "set_state") and hasattr(target, "unwrapped"):
-            target = target.unwrapped
-        if not hasattr(target, "set_state"):
-            raise RuntimeError("Loaded ManiSkill environment does not support set_state.")
-        target.set_state(_to_numpy_state(state))
+        target = getattr(self.env, "unwrapped", self.env)
+        state_payload = _to_numpy_state(state)
+        if isinstance(state_payload, dict) and hasattr(target, "set_state_dict"):
+            target.set_state_dict(state_payload)
+        elif hasattr(target, "set_state"):
+            target.set_state(state_payload)
+        else:
+            raise RuntimeError("Loaded ManiSkill environment does not support state restore.")
         observation = _get_observation_after_state_restore(self.env)
         return wrap_observation(self.env, observation) if observation is not None else None
 
