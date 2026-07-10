@@ -10,7 +10,7 @@ import yaml
 from nyssa_bench.core.registry import ENGINE_REGISTRY, ENGINE_SUPPORT_TIER, POLICY_REGISTRY, POLICY_SUPPORT_TIER
 from nyssa_bench.core.suite import Suite, list_suites
 from nyssa_bench.core.task import TaskSpec, list_tasks
-from nyssa_bench.baselines.simple_bc import train_knn_bc, train_linear_bc
+from nyssa_bench.baselines.simple_bc import train_knn_bc, train_linear_bc, train_task_bc
 from nyssa_bench.datasets.export_hdf5 import export_hdf5
 from nyssa_bench.datasets.export_json import export_json
 from nyssa_bench.datasets.export_jsonl import export_jsonl
@@ -128,6 +128,15 @@ def main(argv: list[str] | None = None) -> int:
     train_bc_parser.add_argument("--ridge", type=float, default=1e-3)
     train_bc_parser.add_argument("--model", choices=["linear", "knn"], default="linear")
     train_bc_parser.add_argument("--knn-k", type=int, default=1)
+
+    train_task_bc_parser = subparsers.add_parser("train-task-bc")
+    train_task_bc_parser.add_argument("sources", nargs="+")
+    train_task_bc_parser.add_argument("--out-dir", default="checkpoints/bc_by_task")
+    train_task_bc_parser.add_argument("--feature-dim", type=int, default=256)
+    train_task_bc_parser.add_argument("--ridge", type=float, default=1e-3)
+    train_task_bc_parser.add_argument("--model", choices=["linear", "knn"], default="linear")
+    train_task_bc_parser.add_argument("--knn-k", type=int, default=1)
+    train_task_bc_parser.add_argument("--include-failures", action="store_true")
 
     train_recovery_bc_parser = subparsers.add_parser("train-recovery-bc")
     train_recovery_bc_parser.add_argument("sources", nargs="+")
@@ -298,6 +307,20 @@ def main(argv: list[str] | None = None) -> int:
             knn_k=args.knn_k,
         )
         print(f"bc_checkpoint: {out}")
+        return 0
+
+    if args.command == "train-task-bc":
+        checkpoints = train_task_bc(
+            args.sources,
+            args.out_dir,
+            feature_dim=args.feature_dim,
+            ridge=args.ridge,
+            model=args.model,
+            k=args.knn_k,
+            success_only=not args.include_failures,
+        )
+        for label, path in checkpoints.items():
+            print(f"bc_checkpoint[{label}]: {path}")
         return 0
 
     if args.command == "train-recovery-bc":

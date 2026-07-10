@@ -503,13 +503,32 @@ Evaluate behavior-cloned policies from those planner demos with the
 planner-aligned suite:
 
 ```bash
-uv run nyssa train-bc \
-  benchmark_results/maniskill_manipulation_v0_planner_demos/maniskill_pick_cube/episodes.json \
-  --out checkpoints/bc_by_task/maniskill_pick_cube.json \
+uv run nyssa train-task-bc \
+  benchmark_results/maniskill_manipulation_v0_planner_demos \
+  --out-dir checkpoints/maniskill_planner_task_bc \
   --model knn \
   --feature-dim 512
 
+NYSSA_TASK_BC_DIR=checkpoints/maniskill_planner_task_bc \
+NYSSA_TASK_BC_MISSING=zero \
+uv run nyssa ablate \
+  --suite maniskill_planner_bc_v0 \
+  --engine maniskill \
+  --policy task_bc_policy \
+  --seeds 0 \
+  --episodes 20 \
+  --variants base \
+  --expert-provider maniskill-scripted \
+  --out benchmark_results/maniskill_task_bc_smoke \
+  --capture-replay
+```
+
+Use state-aligned demonstration replay as the validated ManiSkill teacher upper
+bound. This is an oracle/reference result, not a learned policy:
+
+```bash
 NYSSA_DEMO_REPLAY_DIR=benchmark_results/maniskill_manipulation_v0_planner_demos \
+NYSSA_DEMO_REPLAY_FEATURE_DIM=512 \
 uv run nyssa run \
   --suite maniskill_planner_bc_v0 \
   --engine maniskill \
@@ -518,20 +537,10 @@ uv run nyssa run \
   --seed 0 \
   --out runs/maniskill_demo_replay_smoke \
   --capture-replay
-
-NYSSA_BC_CHECKPOINT=checkpoints/bc_policy.json \
-uv run nyssa run \
-  --suite maniskill_planner_bc_v0 \
-  --engine maniskill \
-  --policy bc_policy \
-  --episodes 10 \
-  --seed 0 \
-  --out runs/bc_planner_smoke \
-  --capture-replay
 ```
 
-For the repo-local linear BC baseline, prefer `task_bc_policy` with one
-checkpoint per task. See `docs/learned_baselines.md` for the exact training
+For the repo-local BC baseline, prefer `task_bc_policy` with one checkpoint per
+task. See `docs/learned_baselines.md` for the exact training
 commands. For stronger learned baselines, use the RoboMimic export and
 `robomimic` or `task_robomimic` policy adapters documented there.
 

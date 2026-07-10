@@ -185,6 +185,86 @@ def train_knn_bc(
     return policy.save(out)
 
 
+def train_task_bc(
+    episodes_paths: list[str | Path],
+    out_dir: str | Path,
+    *,
+    feature_dim: int = 256,
+    ridge: float = 1e-3,
+    model: str = "linear",
+    k: int = 1,
+    success_only: bool = True,
+) -> dict[str, Path]:
+    episodes = _load_episode_sources(episodes_paths)
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for episode in episodes:
+        if success_only and not bool(episode.get("success", True)):
+            continue
+        task_id = str(episode.get("task_id", "")).strip()
+        if not task_id:
+            continue
+        grouped.setdefault(task_checkpoint_key(task_id), []).append(episode)
+    if not grouped:
+        raise ValueError("No task-labeled episodes found for task BC training")
+
+    output_dir = Path(out_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    checkpoints: dict[str, Path] = {}
+    for task_key, task_episodes in sorted(grouped.items()):
+        checkpoint = output_dir / f"{task_key}.json"
+        if model == "linear":
+            policy = train_linear_bc_from_episodes(task_episodes, feature_dim=feature_dim, ridge=ridge)
+        elif model == "knn":
+            policy = train_knn_bc_from_episodes(task_episodes, feature_dim=feature_dim, k=k)
+        else:
+            raise ValueError(f"Unsupported BC model: {model}")
+        checkpoints[task_key] = policy.save(checkpoint)
+    return checkpoints
+
+
+def train_linear_bc_from_episodes(
+    episodes: list[dict[str, Any]],
+    *,
+    feature_dim: int = 256,
+    ridge: float = 1e-3,
+) -> LinearBCPolicy:
+    rows_x, rows_y, action_size = _episode_training_rows_from_payload(episodes, feature_dim=feature_dim)
+    x = np.vstack(rows_x)
+    y = np.vstack(rows_y)
+    x_aug = np.hstack([x, np.ones((x.shape[0], 1))])
+    regularizer = ridge * np.eye(x_aug.shape[1])
+    solution = np.linalg.solve(x_aug.T @ x_aug + regularizer, x_aug.T @ y)
+    return LinearBCPolicy(
+        weights=solution[:-1, :],
+        bias=solution[-1, :],
+        feature_dim=feature_dim,
+        action_size=action_size,
+    )
+
+
+def train_knn_bc_from_episodes(
+    episodes: list[dict[str, Any]],
+    *,
+    feature_dim: int = 256,
+    k: int = 1,
+) -> KNNBCPolicy:
+    rows_x, rows_y, action_size = _episode_training_rows_from_payload(episodes, feature_dim=feature_dim)
+    x = np.vstack(rows_x)
+    y = np.vstack(rows_y)
+    feature_mean = x.mean(axis=0)
+    feature_scale = x.std(axis=0)
+    normalized = (x - feature_mean) / np.where(np.abs(feature_scale) > 1e-8, feature_scale, 1.0)
+    return KNNBCPolicy(
+        features=normalized,
+        actions=y,
+        feature_mean=feature_mean,
+        feature_scale=feature_scale,
+        feature_dim=feature_dim,
+        action_size=action_size,
+        k=k,
+    )
+
+
 def load_bc_policy(path: str | Path) -> LinearBCPolicy | KNNBCPolicy:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     checkpoint_format = str(payload.get("format", "nyssa-linear-bc-v1"))
@@ -210,10 +290,19 @@ def _episode_training_rows(
     *,
     feature_dim: int,
 ) -> tuple[list[np.ndarray], list[np.ndarray], int]:
+    episodes = json.loads(Path(episodes_path).read_text(encoding="utf-8"))
+    return _episode_training_rows_from_payload(episodes, feature_dim=feature_dim)
+
+
+def _episode_training_rows_from_payload(
+    episodes: list[dict[str, Any]],
+    *,
+    feature_dim: int,
+) -> tuple[list[np.ndarray], list[np.ndarray], int]:
     rows_x: list[np.ndarray] = []
     rows_y: list[np.ndarray] = []
     action_size: int | None = None
-    for episode in json.loads(Path(episodes_path).read_text(encoding="utf-8")):
+    for episode in episodes:
         for step in episode.get("steps", []):
             observation = step.get("observation", {})
             _, _, shape = action_bounds(observation)
@@ -222,8 +311,35 @@ def _episode_training_rows(
             rows_x.append(flatten_observation(observation, feature_dim))
             rows_y.append(normalize_action(step.get("action"), action_size))
     if not rows_x or action_size is None:
-        raise ValueError(f"No training steps found in {episodes_path}")
+        raise ValueError("No training steps found")
     return rows_x, rows_y, action_size
+
+
+def _load_episode_sources(paths: list[str | Path]) -> list[dict[str, Any]]:
+    episodes: list[dict[str, Any]] = []
+    for source in paths:
+        path = Path(source)
+        files = _episode_files(path)
+        if not files:
+            raise FileNotFoundError(f"No episodes.json files found for task BC source: {path}")
+        for file_path in files:
+            payload = json.loads(file_path.read_text(encoding="utf-8"))
+            if isinstance(payload, list):
+                episodes.extend(item for item in payload if isinstance(item, dict))
+            else:
+                raise ValueError(f"Episode source must contain a JSON list: {file_path}")
+    return episodes
+
+
+def _episode_files(path: Path) -> list[Path]:
+    if path.is_file():
+        return [path]
+    if not path.exists():
+        return []
+    root_episodes = path / "episodes.json"
+    if root_episodes.exists():
+        return [root_episodes]
+    return sorted(child / "episodes.json" for child in path.iterdir() if (child / "episodes.json").exists())
 
 
 def create_task_bc_policy() -> TaskRoutedLinearBCPolicy:

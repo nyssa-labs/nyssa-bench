@@ -582,6 +582,53 @@ def test_cli_train_bc_knn(tmp_path: Path):
     assert len(payload["features"]) == 2
 
 
+def test_cli_train_task_bc_groups_by_task_and_skips_failures(tmp_path: Path):
+    episodes = tmp_path / "episodes.json"
+    episodes.write_text(
+        json.dumps(
+            [
+                {
+                    "task_id": "maniskill_pick_cube_joint",
+                    "success": True,
+                    "steps": [{"observation": _observation_with_action_size(2, raw=[0.0, 0.0]), "action": [0.1, 0.2]}],
+                },
+                {
+                    "task_id": "maniskill_push_cube_joint",
+                    "success": True,
+                    "steps": [{"observation": _observation_with_action_size(2, raw=[1.0, 1.0]), "action": [-0.1, -0.2]}],
+                },
+                {
+                    "task_id": "maniskill_stack_cube_joint",
+                    "success": False,
+                    "steps": [{"observation": _observation_with_action_size(2, raw=[2.0, 2.0]), "action": [0.9, 0.9]}],
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "task_bc"
+
+    assert (
+        main(
+            [
+                "train-task-bc",
+                str(episodes),
+                "--out-dir",
+                str(out_dir),
+                "--model",
+                "knn",
+                "--feature-dim",
+                "2",
+            ]
+        )
+        == 0
+    )
+
+    assert (out_dir / "maniskill_pick_cube.json").exists()
+    assert (out_dir / "maniskill_push_cube.json").exists()
+    assert not (out_dir / "maniskill_stack_cube.json").exists()
+
+
 def test_demo_replay_policy_routes_joint_task_and_replays_actions(tmp_path: Path):
     from nyssa_bench.policies.demo_replay_policy import DemoReplayPolicy
 
