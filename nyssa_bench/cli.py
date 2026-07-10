@@ -10,7 +10,7 @@ import yaml
 from nyssa_bench.core.registry import ENGINE_REGISTRY, ENGINE_SUPPORT_TIER, POLICY_REGISTRY, POLICY_SUPPORT_TIER
 from nyssa_bench.core.suite import Suite, list_suites
 from nyssa_bench.core.task import TaskSpec, list_tasks
-from nyssa_bench.baselines.simple_bc import train_knn_bc, train_linear_bc, train_task_bc
+from nyssa_bench.baselines.simple_bc import train_knn_bc, train_linear_bc, train_sequence_knn_bc, train_task_bc
 from nyssa_bench.datasets.export_hdf5 import export_hdf5
 from nyssa_bench.datasets.export_json import export_json
 from nyssa_bench.datasets.export_jsonl import export_jsonl
@@ -126,16 +126,18 @@ def main(argv: list[str] | None = None) -> int:
     train_bc_parser.add_argument("--out", default="checkpoints/bc_policy.json")
     train_bc_parser.add_argument("--feature-dim", type=int, default=256)
     train_bc_parser.add_argument("--ridge", type=float, default=1e-3)
-    train_bc_parser.add_argument("--model", choices=["linear", "knn"], default="linear")
+    train_bc_parser.add_argument("--model", choices=["linear", "knn", "sequence-knn"], default="linear")
     train_bc_parser.add_argument("--knn-k", type=int, default=1)
+    train_bc_parser.add_argument("--action-horizon", type=int, default=8)
 
     train_task_bc_parser = subparsers.add_parser("train-task-bc")
     train_task_bc_parser.add_argument("sources", nargs="+")
     train_task_bc_parser.add_argument("--out-dir", default="checkpoints/bc_by_task")
     train_task_bc_parser.add_argument("--feature-dim", type=int, default=256)
     train_task_bc_parser.add_argument("--ridge", type=float, default=1e-3)
-    train_task_bc_parser.add_argument("--model", choices=["linear", "knn"], default="linear")
+    train_task_bc_parser.add_argument("--model", choices=["linear", "knn", "sequence-knn"], default="linear")
     train_task_bc_parser.add_argument("--knn-k", type=int, default=1)
+    train_task_bc_parser.add_argument("--action-horizon", type=int, default=8)
     train_task_bc_parser.add_argument("--include-failures", action="store_true")
 
     train_recovery_bc_parser = subparsers.add_parser("train-recovery-bc")
@@ -305,6 +307,7 @@ def main(argv: list[str] | None = None) -> int:
             ridge=args.ridge,
             model=args.model,
             knn_k=args.knn_k,
+            action_horizon=args.action_horizon,
         )
         print(f"bc_checkpoint: {out}")
         return 0
@@ -317,6 +320,7 @@ def main(argv: list[str] | None = None) -> int:
             ridge=args.ridge,
             model=args.model,
             k=args.knn_k,
+            action_horizon=args.action_horizon,
             success_only=not args.include_failures,
         )
         for label, path in checkpoints.items():
@@ -550,9 +554,18 @@ def _train_bc_from_episode_files(
     ridge: float,
     model: str,
     knn_k: int,
+    action_horizon: int,
 ) -> Path:
     if len(episodes_paths) == 1:
-        return _train_single_bc(episodes_paths[0], out, feature_dim=feature_dim, ridge=ridge, model=model, knn_k=knn_k)
+        return _train_single_bc(
+            episodes_paths[0],
+            out,
+            feature_dim=feature_dim,
+            ridge=ridge,
+            model=model,
+            knn_k=knn_k,
+            action_horizon=action_horizon,
+        )
 
     import json
     import tempfile
@@ -564,7 +577,15 @@ def _train_bc_from_episode_files(
         json.dump(merged, handle)
         merged_path = Path(handle.name)
     try:
-        return _train_single_bc(merged_path, out, feature_dim=feature_dim, ridge=ridge, model=model, knn_k=knn_k)
+        return _train_single_bc(
+            merged_path,
+            out,
+            feature_dim=feature_dim,
+            ridge=ridge,
+            model=model,
+            knn_k=knn_k,
+            action_horizon=action_horizon,
+        )
     finally:
         try:
             merged_path.unlink()
@@ -580,11 +601,20 @@ def _train_single_bc(
     ridge: float,
     model: str,
     knn_k: int,
+    action_horizon: int,
 ) -> Path:
     if model == "linear":
         return train_linear_bc(episodes_path, out, feature_dim=feature_dim, ridge=ridge)
     if model == "knn":
         return train_knn_bc(episodes_path, out, feature_dim=feature_dim, k=knn_k)
+    if model == "sequence-knn":
+        return train_sequence_knn_bc(
+            episodes_path,
+            out,
+            feature_dim=feature_dim,
+            k=knn_k,
+            action_horizon=action_horizon,
+        )
     raise ValueError(f"Unsupported BC model: {model}")
 
 

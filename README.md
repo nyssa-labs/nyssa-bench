@@ -506,8 +506,9 @@ planner-aligned suite:
 uv run nyssa train-task-bc \
   benchmark_results/maniskill_manipulation_v0_planner_demos \
   --out-dir checkpoints/maniskill_planner_task_bc \
-  --model knn \
-  --feature-dim 512
+  --model sequence-knn \
+  --feature-dim 512 \
+  --action-horizon 16
 
 NYSSA_TASK_BC_DIR=checkpoints/maniskill_planner_task_bc \
 NYSSA_TASK_BC_MISSING=zero \
@@ -519,6 +520,8 @@ uv run nyssa ablate \
   --episodes 20 \
   --variants base \
   --expert-provider maniskill-scripted \
+  --policy-action-horizon 16 \
+  --policy-execution-horizon 4 \
   --out benchmark_results/maniskill_task_bc_smoke \
   --capture-replay
 ```

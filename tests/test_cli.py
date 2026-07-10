@@ -629,6 +629,66 @@ def test_cli_train_task_bc_groups_by_task_and_skips_failures(tmp_path: Path):
     assert not (out_dir / "maniskill_stack_cube.json").exists()
 
 
+def test_cli_train_task_bc_sequence_knn_uses_deployable_observation_features(tmp_path: Path):
+    import numpy as np
+
+    from nyssa_bench.baselines.simple_bc import load_bc_policy
+
+    episodes = tmp_path / "episodes.json"
+    episodes.write_text(
+        json.dumps(
+            [
+                {
+                    "task_id": "maniskill_pick_cube_joint",
+                    "success": True,
+                    "steps": [
+                        {
+                            "observation": _observation_with_action_size(
+                                2,
+                                raw={"obs": [0.0, 0.0], "env_states": [100.0, 100.0]},
+                            ),
+                            "action": [0.1, 0.2],
+                        },
+                        {
+                            "observation": _observation_with_action_size(
+                                2,
+                                raw={"obs": [0.1, 0.1], "env_states": [101.0, 101.0]},
+                            ),
+                            "action": [0.3, 0.4],
+                        },
+                    ],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "task_bc"
+
+    assert (
+        main(
+            [
+                "train-task-bc",
+                str(episodes),
+                "--out-dir",
+                str(out_dir),
+                "--model",
+                "sequence-knn",
+                "--feature-dim",
+                "2",
+                "--action-horizon",
+                "2",
+            ]
+        )
+        == 0
+    )
+
+    policy = load_bc_policy(out_dir / "maniskill_pick_cube.json")
+    action_chunk = policy.predict_action(_observation_with_action_size(2, raw={"obs": [0.0, 0.0]}))
+
+    assert action_chunk.shape == (2, 2)
+    assert np.allclose(action_chunk, [[0.1, 0.2], [0.3, 0.4]])
+
+
 def test_demo_replay_policy_routes_joint_task_and_replays_actions(tmp_path: Path):
     from nyssa_bench.policies.demo_replay_policy import DemoReplayPolicy
 
