@@ -5,7 +5,9 @@ import os
 from pathlib import Path
 from typing import Any
 
-from nyssa_bench.baselines.features import fit_action_to_observation
+import numpy as np
+
+from nyssa_bench.baselines.features import fit_action_to_observation, flatten_observation
 from nyssa_bench.baselines.simple_bc import task_checkpoint_key
 from nyssa_bench.policies.base import Policy
 
@@ -20,30 +22,40 @@ class DemoReplayPolicy(Policy):
 
     def __init__(self, demo_dir: str | Path | None = None) -> None:
         self.demo_dir = Path(demo_dir or os.getenv("NYSSA_DEMO_REPLAY_DIR", "benchmark_results/maniskill_official_demos_import_v2"))
+        self.feature_dim = int(os.getenv("NYSSA_DEMO_REPLAY_FEATURE_DIM", "512"))
         self.current_task_id: str | None = None
         self.current_actions: list[Any] = []
+        self.pending_seed: int | None = None
         self.cursor = 0
-        self._episodes_by_task: dict[str, list[dict[str, Any]]] = {}
+        self._episodes_by_task: dict[str, list[_DemoEpisode]] = {}
 
     def reset(self, task: Any | None = None, seed: int | None = None) -> None:
         self.current_task_id = task_checkpoint_key(str(getattr(task, "task_id", "")))
-        episodes = self._load_task_episodes(self.current_task_id)
-        if not episodes:
-            self.current_actions = []
-            self.cursor = 0
-            return
-        index = int(seed or 0) % len(episodes)
-        self.current_actions = [step.get("action") for step in episodes[index].get("steps", [])]
+        self.pending_seed = seed
+        self.current_actions = []
         self.cursor = 0
 
     def act(self, observation: dict[str, Any]) -> Any:
+        if not self.current_actions and self.current_task_id:
+            self.current_actions = self._select_actions(self.current_task_id, observation)
         if not self.current_actions:
             return fit_action_to_observation(0.0, observation)
         index = min(self.cursor, len(self.current_actions) - 1)
         self.cursor += 1
         return fit_action_to_observation(self.current_actions[index], observation)
 
-    def _load_task_episodes(self, task_id: str) -> list[dict[str, Any]]:
+    def _select_actions(self, task_id: str, observation: dict[str, Any]) -> list[Any]:
+        episodes = self._load_task_episodes(task_id)
+        if not episodes:
+            return []
+        query = flatten_observation(observation, self.feature_dim)
+        distances = [float(np.sum((episode.initial_features - query) ** 2)) for episode in episodes]
+        best_distance = min(distances)
+        candidates = [index for index, distance in enumerate(distances) if np.isclose(distance, best_distance)]
+        selected = candidates[int(self.pending_seed or 0) % len(candidates)]
+        return episodes[selected].actions
+
+    def _load_task_episodes(self, task_id: str) -> list["_DemoEpisode"]:
         if task_id not in self._episodes_by_task:
             path = self.demo_dir / task_id / "episodes.json"
             if not path.exists():
@@ -51,6 +63,25 @@ class DemoReplayPolicy(Policy):
                     f"Demo replay episodes not found for task '{task_id}': {path}. "
                     "Set NYSSA_DEMO_REPLAY_DIR to an imported ManiSkill demo directory."
                 )
-            episodes = json.loads(path.read_text(encoding="utf-8"))
-            self._episodes_by_task[task_id] = [episode for episode in episodes if bool(episode.get("success", False))]
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            self._episodes_by_task[task_id] = [
+                _demo_episode(episode, feature_dim=self.feature_dim)
+                for episode in payload
+                if bool(episode.get("success", False)) and episode.get("steps")
+            ]
         return self._episodes_by_task[task_id]
+
+
+class _DemoEpisode:
+    def __init__(self, initial_features: np.ndarray, actions: list[Any]) -> None:
+        self.initial_features = initial_features
+        self.actions = actions
+
+
+def _demo_episode(episode: dict[str, Any], *, feature_dim: int) -> _DemoEpisode:
+    steps = list(episode.get("steps", []))
+    initial_observation = steps[0].get("observation", {}) if steps else {}
+    return _DemoEpisode(
+        initial_features=flatten_observation(initial_observation, feature_dim),
+        actions=[step.get("action") for step in steps],
+    )

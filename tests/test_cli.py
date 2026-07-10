@@ -593,8 +593,15 @@ def test_demo_replay_policy_routes_joint_task_and_replays_actions(tmp_path: Path
                 {
                     "success": True,
                     "steps": [
-                        {"action": [0.25, -0.25]},
-                        {"action": [0.75, -0.75]},
+                        {"observation": _observation_with_action_size(2, raw=[0.0, 0.0]), "action": [0.25, -0.25]},
+                        {"observation": _observation_with_action_size(2, raw=[0.1, 0.1]), "action": [0.75, -0.75]},
+                    ],
+                },
+                {
+                    "success": True,
+                    "steps": [
+                        {"observation": _observation_with_action_size(2, raw=[5.0, 5.0]), "action": [-0.25, 0.25]},
+                        {"observation": _observation_with_action_size(2, raw=[5.1, 5.1]), "action": [-0.75, 0.75]},
                     ],
                 }
             ]
@@ -603,16 +610,16 @@ def test_demo_replay_policy_routes_joint_task_and_replays_actions(tmp_path: Path
     )
     policy = DemoReplayPolicy(tmp_path)
     task = type("Task", (), {"task_id": "maniskill_pick_cube_joint"})()
-    observation = _observation_with_action_size(2)
+    observation = _observation_with_action_size(2, raw=[4.9, 5.2])
 
     policy.reset(task=task, seed=0)
     first = policy.act(observation)
     second = policy.act(observation)
     repeated = policy.act(observation)
 
-    assert first.tolist() == [0.25, -0.25]
-    assert second.tolist() == [0.75, -0.75]
-    assert repeated.tolist() == [0.75, -0.75]
+    assert first.tolist() == [-0.25, 0.25]
+    assert second.tolist() == [-0.75, 0.75]
+    assert repeated.tolist() == [-0.75, 0.75]
 
 
 def test_demo_replay_policy_clips_to_live_action_space(tmp_path: Path):
@@ -621,7 +628,16 @@ def test_demo_replay_policy_clips_to_live_action_space(tmp_path: Path):
     task_dir = tmp_path / "mujoco_reacher"
     task_dir.mkdir(parents=True)
     (task_dir / "episodes.json").write_text(
-        json.dumps([{"success": True, "steps": [{"action": [2.0, -2.0]}]}]),
+        json.dumps(
+            [
+                {
+                    "success": True,
+                    "steps": [
+                        {"observation": _observation_with_action_size(2, raw=[0.0, 0.0]), "action": [2.0, -2.0]}
+                    ],
+                }
+            ]
+        ),
         encoding="utf-8",
     )
     policy = DemoReplayPolicy(tmp_path)
