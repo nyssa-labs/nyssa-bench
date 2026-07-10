@@ -509,6 +509,16 @@ uv run nyssa train-bc \
   --model knn \
   --feature-dim 512
 
+NYSSA_DEMO_REPLAY_DIR=benchmark_results/maniskill_manipulation_v0_planner_demos \
+uv run nyssa run \
+  --suite maniskill_planner_bc_v0 \
+  --engine maniskill \
+  --policy demo_replay_policy \
+  --episodes 10 \
+  --seed 0 \
+  --out runs/maniskill_demo_replay_smoke \
+  --capture-replay
+
 NYSSA_BC_CHECKPOINT=checkpoints/bc_policy.json \
 uv run nyssa run \
   --suite maniskill_planner_bc_v0 \

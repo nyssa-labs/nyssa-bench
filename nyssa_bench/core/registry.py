@@ -7,6 +7,7 @@ from nyssa_bench.engines.mujoco_adapter import MuJoCoEngine
 from nyssa_bench.engines.robocasa_adapter import RoboCasaEngine
 from nyssa_bench.policies.bc_policy import BCPolicy
 from nyssa_bench.policies.base import Policy
+from nyssa_bench.policies.demo_replay_policy import DemoReplayPolicy
 from nyssa_bench.policies.diffusion_policy_adapter import DiffusionPolicyAdapter
 from nyssa_bench.policies.lerobot_adapter import LeRobotPolicy
 from nyssa_bench.policies.openvla_adapter import OpenVLAPolicy
@@ -35,6 +36,7 @@ POLICY_REGISTRY: dict[str, type[Policy]] = {
     "random": RandomPolicy,
     "scripted_oracle": ScriptedOraclePolicy,
     "bc_policy": BCPolicy,
+    "demo_replay_policy": DemoReplayPolicy,
     "task_bc_policy": TaskBCPolicy,
     "lerobot": LeRobotPolicy,
     "robomimic": RoboMimicPolicy,
@@ -47,6 +49,7 @@ POLICY_SUPPORT_TIER: dict[str, str] = {
     "random": "sanity_baseline",
     "scripted_oracle": "oracle_baseline_adapter",
     "bc_policy": "learned_baseline_adapter",
+    "demo_replay_policy": "teacher_replay_baseline",
     "task_bc_policy": "task_routed_learned_baseline_adapter",
     "lerobot": "adapter_hook",
     "robomimic": "adapter_hook",
