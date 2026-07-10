@@ -159,10 +159,14 @@ def _episode_from_group(
 def _observation_at(group: Any, index: int, step_count: int) -> dict[str, Any]:
     for key in ("obs", "observation", "observations"):
         if key in group:
-            return _slice_timed_value(group[key], index, step_count)
+            observation = _slice_timed_value(group[key], index, step_count)
+            if _has_payload(observation):
+                return observation
     for key in ("env_states", "states", "state"):
         if key in group:
-            return {key: _slice_timed_value(group[key], index, step_count)}
+            state = _slice_timed_value(group[key], index, step_count)
+            if _has_payload(state):
+                return {key: state}
     return {"timestep": index}
 
 
@@ -173,6 +177,16 @@ def _slice_timed_value(value: Any, index: int, step_count: int) -> Any:
     if array.ndim > 0 and array.shape[0] in (step_count, step_count + 1):
         return array[min(index, array.shape[0] - 1)]
     return array
+
+
+def _has_payload(value: Any) -> bool:
+    if isinstance(value, dict):
+        return any(_has_payload(item) for item in value.values())
+    if hasattr(value, "shape"):
+        return bool(value.shape) or value.size > 0
+    if isinstance(value, (list, tuple)):
+        return bool(value)
+    return value is not None
 
 
 def _optional_array(group: Any, names: tuple[str, ...], step_count: int) -> np.ndarray | None:

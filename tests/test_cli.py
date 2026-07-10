@@ -553,6 +553,31 @@ def test_cli_imports_maniskill_demos(tmp_path: Path):
     assert (out / "maniskill_pick_cube" / "episodes.json").exists()
 
 
+def test_cli_imports_maniskill_demos_falls_back_from_empty_obs_to_env_states(tmp_path: Path):
+    pytest.importorskip("h5py")
+    import h5py
+    import numpy as np
+
+    demos = tmp_path / "demos"
+    demos.mkdir()
+    h5_path = demos / "PushCube-v1.motionplanning.h5"
+    with h5py.File(h5_path, "w") as handle:
+        handle.attrs["env_id"] = "PushCube-v1"
+        traj = handle.create_group("traj_0")
+        traj.create_dataset("actions", data=np.zeros((2, 8), dtype=np.float32))
+        traj.create_dataset("success", data=np.asarray([False, True]))
+        traj.create_group("obs")
+        traj.create_dataset("env_states", data=np.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
+
+    out = tmp_path / "imported"
+    assert main(["import-maniskill-demos", "--input", str(demos), "--out", str(out)]) == 0
+
+    episodes = json.loads((out / "episodes.json").read_text(encoding="utf-8"))
+    first_raw = episodes[0]["steps"][0]["observation"]["raw"]
+    assert episodes[0]["task_id"] == "maniskill_push_cube"
+    assert first_raw == {"env_states": [1.0, 2.0, 3.0]}
+
+
 def test_cli_collects_maniskill_demos_with_template(tmp_path: Path):
     pytest.importorskip("h5py")
 
