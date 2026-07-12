@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import zipfile
 from pathlib import Path
 from typing import Any, TypeAlias
 
@@ -472,6 +473,9 @@ def _load_episode_sources(paths: list[str | Path]) -> list[dict[str, Any]]:
     episodes: list[dict[str, Any]] = []
     for source in paths:
         path = Path(source)
+        if path.is_file() and path.suffix.lower() == ".zip":
+            episodes.extend(_load_episode_zip(path))
+            continue
         files = _episode_files(path)
         if not files:
             raise FileNotFoundError(f"No episodes.json files found for task BC source: {path}")
@@ -482,6 +486,47 @@ def _load_episode_sources(paths: list[str | Path]) -> list[dict[str, Any]]:
             else:
                 raise ValueError(f"Episode source must contain a JSON list: {file_path}")
     return episodes
+
+
+def _load_episode_zip(path: Path) -> list[dict[str, Any]]:
+    episodes: list[dict[str, Any]] = []
+    with zipfile.ZipFile(path) as archive:
+        names = _episode_zip_members(archive)
+        if not names:
+            raise FileNotFoundError(f"No episodes.json files found in task BC archive: {path}")
+        for name in names:
+            payload = json.loads(archive.read(name).decode("utf-8"))
+            if isinstance(payload, list):
+                episodes.extend(item for item in payload if isinstance(item, dict))
+            else:
+                raise ValueError(f"Episode archive member must contain a JSON list: {path}!{name}")
+    return episodes
+
+
+def _episode_zip_members(archive: zipfile.ZipFile) -> list[str]:
+    candidates = sorted(
+        name
+        for name in archive.namelist()
+        if name.endswith("episodes.json") and "recovery_dataset" not in {part.lower() for part in name.split("/")}
+    )
+    root_members = [name for name in candidates if _looks_like_root_episode_file(name)]
+    return root_members or candidates
+
+
+def _looks_like_root_episode_file(name: str) -> bool:
+    parent = name.rsplit("/", 1)[0]
+    leaf = parent.rsplit("/", 1)[-1]
+    return leaf not in {
+        "maniskill_pick_cube",
+        "maniskill_push_cube",
+        "maniskill_stack_cube",
+        "maniskill_pick_cube_joint",
+        "maniskill_push_cube_joint",
+        "maniskill_stack_cube_joint",
+        "mujoco_reacher",
+        "mujoco_pusher",
+        "mujoco_inverted_pendulum",
+    }
 
 
 def _episode_files(path: Path) -> list[Path]:

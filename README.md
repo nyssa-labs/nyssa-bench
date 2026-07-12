@@ -526,6 +526,10 @@ uv run nyssa ablate \
   --capture-replay
 ```
 
+`train-task-bc` accepts extracted result/import directories, direct
+`episodes.json` files, or zipped result packs. It recursively discovers nested
+`episodes.json` files and skips generated `recovery_dataset` folders.
+
 Use state-aligned demonstration replay as the validated ManiSkill teacher upper
 bound. This is an oracle/reference result, not a learned policy:
 

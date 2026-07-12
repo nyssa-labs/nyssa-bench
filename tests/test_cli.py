@@ -651,6 +651,31 @@ def test_cli_train_task_bc_discovers_nested_episode_files(tmp_path: Path):
     assert (out_dir / "maniskill_pick_cube.json").exists()
 
 
+def test_cli_train_task_bc_reads_episode_zip_without_double_counting(tmp_path: Path):
+    import zipfile
+
+    root_episode = {
+        "task_id": "maniskill_pick_cube",
+        "success": True,
+        "steps": [{"observation": _observation_with_action_size(2, raw=[0.0, 0.0]), "action": [0.1, 0.2]}],
+    }
+    task_episode = {
+        "task_id": "maniskill_push_cube",
+        "success": True,
+        "steps": [{"observation": _observation_with_action_size(2, raw=[1.0, 1.0]), "action": [0.3, 0.4]}],
+    }
+    archive_path = tmp_path / "episodes.zip"
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("benchmark_results/imported/episodes.json", json.dumps([root_episode]))
+        archive.writestr("benchmark_results/imported/maniskill_push_cube/episodes.json", json.dumps([task_episode]))
+    out_dir = tmp_path / "task_bc"
+
+    assert main(["train-task-bc", str(archive_path), "--out-dir", str(out_dir), "--model", "knn"]) == 0
+
+    assert (out_dir / "maniskill_pick_cube.json").exists()
+    assert not (out_dir / "maniskill_push_cube.json").exists()
+
+
 def test_cli_train_task_bc_sequence_knn_uses_deployable_observation_features(tmp_path: Path):
     import numpy as np
 
