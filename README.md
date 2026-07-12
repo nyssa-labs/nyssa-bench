@@ -551,6 +551,19 @@ task. See `docs/learned_baselines.md` for the exact training
 commands. For stronger learned baselines, use the RoboMimic export and
 `robomimic` or `task_robomimic` policy adapters documented there.
 
+For task-routed RoboMimic training, export one dataset and config per task from
+the same imported demos or result zip:
+
+```bash
+uv run nyssa export-task-robomimic \
+  benchmark_results/maniskill_manipulation_v0_planner_demos \
+  --out-dir datasets/maniskill_robomimic_by_task \
+  --config-dir configs/generated/maniskill_robomimic_by_task \
+  --feature-dim 512 \
+  --epochs 50 \
+  --batch-size 64
+```
+
 Validate optional simulator backends:
 
 ```bash

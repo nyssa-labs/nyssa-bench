@@ -61,43 +61,33 @@ random and scripted baselines in validated result artifacts.
 ## RoboMimic BC
 
 RoboMimic is the next learned baseline after the linear smoke test. Export the
-imported planner demonstrations to RoboMimic HDF5:
+imported planner demonstrations to one RoboMimic HDF5 and config per task:
 
 ```bash
-uv run nyssa export \
-  --run benchmark_results/maniskill_manipulation_v0_planner_state_demos \
-  --format robomimic \
-  --out benchmark_results/maniskill_manipulation_v0_planner_state_demos/robomimic_flat.hdf5
-
-uv run nyssa write-robomimic-config \
-  --data benchmark_results/maniskill_manipulation_v0_planner_state_demos/robomimic_flat.hdf5 \
-  --out configs/generated/robomimic_planner_bc.json \
-  --output-dir checkpoints/robomimic_planner \
-  --name nyssa_maniskill_planner_bc \
+uv run nyssa export-task-robomimic \
+  benchmark_results/maniskill_manipulation_v0_planner_state_demos \
+  --out-dir datasets/maniskill_robomimic_by_task \
+  --config-dir configs/generated/maniskill_robomimic_by_task \
+  --feature-dim 512 \
   --epochs 50 \
   --batch-size 64
-
-uv run nyssa train-robomimic \
-  --config configs/generated/robomimic_planner_bc.json
 ```
 
-After training, point `NYSSA_ROBOMIMIC_CHECKPOINT` at the best saved
-`model_epoch_*.pth` file and evaluate:
+Train each generated config:
 
 ```bash
-NYSSA_ROBOMIMIC_CHECKPOINT=checkpoints/robomimic_planner/nyssa_maniskill_planner_bc/<run>/models/model_epoch_50.pth \
-uv run nyssa run \
-  --suite maniskill_planner_bc_v0 \
-  --engine maniskill \
-  --policy robomimic \
-  --episodes 30 \
-  --seed 0 \
-  --out runs/robomimic_planner_smoke \
-  --capture-replay
+uv run nyssa train-robomimic \
+  --config configs/generated/maniskill_robomimic_by_task/maniskill_pick_cube_bc.json
+
+uv run nyssa train-robomimic \
+  --config configs/generated/maniskill_robomimic_by_task/maniskill_push_cube_bc.json
+
+uv run nyssa train-robomimic \
+  --config configs/generated/maniskill_robomimic_by_task/maniskill_stack_cube_bc.json
 ```
 
-For stronger per-task baselines, train one RoboMimic checkpoint per imported
-task file and place/copy the best checkpoints here:
+After training, place or symlink the best checkpoints into the task-routed
+checkpoint directory:
 
 ```txt
 checkpoints/robomimic_by_task/maniskill_pick_cube.pth

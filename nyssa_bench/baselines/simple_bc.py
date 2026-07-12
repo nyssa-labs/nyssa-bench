@@ -470,6 +470,10 @@ def _episode_sequence_training_rows_from_payload(
 
 
 def _load_episode_sources(paths: list[str | Path]) -> list[dict[str, Any]]:
+    return load_episode_sources(paths)
+
+
+def load_episode_sources(paths: list[str | Path]) -> list[dict[str, Any]]:
     episodes: list[dict[str, Any]] = []
     for source in paths:
         path = Path(source)

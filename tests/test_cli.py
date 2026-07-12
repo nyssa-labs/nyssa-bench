@@ -168,6 +168,80 @@ def test_cli_robomimic_export_with_dataset_extra(tmp_path: Path):
     assert "env_kwargs" in env_args
 
 
+def test_cli_export_task_robomimic_with_dataset_extra(tmp_path: Path):
+    pytest.importorskip("h5py")
+    import h5py
+
+    episodes = tmp_path / "episodes.json"
+    episodes.write_text(
+        json.dumps(
+            [
+                {
+                    "task_id": "maniskill_pick_cube_joint",
+                    "success": True,
+                    "steps": [
+                        {
+                            "observation": _observation_with_action_size(
+                                2,
+                                raw={"obs": [0.0, 0.0], "env_states": [9.0, 9.0]},
+                            ),
+                            "action": [0.1, 0.2],
+                            "reward": 1.0,
+                            "terminated": True,
+                            "truncated": False,
+                            "info": {"success": True},
+                        }
+                    ],
+                },
+                {
+                    "task_id": "maniskill_push_cube_joint",
+                    "success": False,
+                    "steps": [
+                        {
+                            "observation": _observation_with_action_size(2, raw=[1.0, 1.0]),
+                            "action": [0.3, 0.4],
+                        }
+                    ],
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "robomimic_by_task"
+    config_dir = tmp_path / "configs"
+
+    assert (
+        main(
+            [
+                "export-task-robomimic",
+                str(episodes),
+                "--out-dir",
+                str(out_dir),
+                "--config-dir",
+                str(config_dir),
+                "--feature-dim",
+                "4",
+                "--epochs",
+                "2",
+            ]
+        )
+        == 0
+    )
+
+    hdf5_path = out_dir / "maniskill_pick_cube.hdf5"
+    config_path = config_dir / "maniskill_pick_cube_bc.json"
+    assert hdf5_path.exists()
+    assert config_path.exists()
+    assert not (out_dir / "maniskill_push_cube.hdf5").exists()
+    with h5py.File(hdf5_path, "r") as handle:
+        assert handle["data"].attrs["total"] == 1
+        assert handle["data"]["demo_0"]["obs"]["flat"].shape == (1, 4)
+        assert handle["data"]["demo_0"]["obs"]["flat"][0].tolist() == [0.0, 0.0, 0.0, 0.0]
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    assert config["train"]["data"] == str(hdf5_path.resolve())
+    assert config["train"]["num_epochs"] == 2
+
+
 def test_cli_experiment_writes_result_pack(tmp_path: Path):
     _register_cli_engine()
     out = tmp_path / "experiment"

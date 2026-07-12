@@ -17,6 +17,7 @@ from nyssa_bench.datasets.export_jsonl import export_jsonl
 from nyssa_bench.datasets.export_lerobot import export_lerobot
 from nyssa_bench.datasets.export_parquet import export_parquet
 from nyssa_bench.datasets.export_robomimic import export_robomimic_hdf5
+from nyssa_bench.datasets.export_task_robomimic import export_task_robomimic
 from nyssa_bench.datasets.collect_maniskill import collect_maniskill_demos
 from nyssa_bench.datasets.import_maniskill import import_maniskill_demos
 from nyssa_bench.datasets.recovery_training import train_recovery_bc
@@ -165,6 +166,17 @@ def main(argv: list[str] | None = None) -> int:
     robomimic_config_parser.add_argument("--batch-size", type=int, default=64)
     robomimic_config_parser.add_argument("--seed", type=int, default=1)
     robomimic_config_parser.add_argument("--learning-rate", type=float, default=1e-4)
+
+    task_robomimic_export_parser = subparsers.add_parser("export-task-robomimic")
+    task_robomimic_export_parser.add_argument("sources", nargs="+")
+    task_robomimic_export_parser.add_argument("--out-dir", default="datasets/robomimic_by_task")
+    task_robomimic_export_parser.add_argument("--config-dir")
+    task_robomimic_export_parser.add_argument("--feature-dim", type=int, default=512)
+    task_robomimic_export_parser.add_argument("--epochs", type=int, default=50)
+    task_robomimic_export_parser.add_argument("--batch-size", type=int, default=64)
+    task_robomimic_export_parser.add_argument("--seed", type=int, default=1)
+    task_robomimic_export_parser.add_argument("--learning-rate", type=float, default=1e-4)
+    task_robomimic_export_parser.add_argument("--include-failures", action="store_true")
 
     import_maniskill_parser = subparsers.add_parser("import-maniskill-demos")
     import_maniskill_parser.add_argument("--input", required=True)
@@ -368,6 +380,23 @@ def main(argv: list[str] | None = None) -> int:
             learning_rate=args.learning_rate,
         )
         print(f"robomimic_config: {out}")
+        return 0
+
+    if args.command == "export-task-robomimic":
+        artifacts = export_task_robomimic(
+            args.sources,
+            out_dir=args.out_dir,
+            config_dir=args.config_dir,
+            feature_dim=args.feature_dim,
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            seed=args.seed,
+            learning_rate=args.learning_rate,
+            success_only=not args.include_failures,
+        )
+        for task, paths in artifacts.items():
+            for label, path in paths.items():
+                print(f"{label}[{task}]: {path}")
         return 0
 
     if args.command == "import-maniskill-demos":

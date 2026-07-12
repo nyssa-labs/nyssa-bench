@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from typing import Any
+
 from nyssa_bench.baselines.features import flatten_observation, normalize_action
 from nyssa_bench.core.episode import EpisodeResult
 
@@ -35,7 +37,7 @@ def export_robomimic_hdf5(
         total = 0
         for index, episode in enumerate(episodes):
             group = data.create_group(f"demo_{index}")
-            observations = [flatten_observation(step.observation, feature_dim) for step in episode.steps]
+            observations = [flatten_observation(_without_simulator_state(step.observation), feature_dim) for step in episode.steps]
             action_size = _action_size(episode)
             actions = [normalize_action(step.action, action_size) for step in episode.steps]
             rewards = [step.reward for step in episode.steps]
@@ -71,3 +73,13 @@ def _action_size(episode: EpisodeResult) -> int:
                 size *= int(value)
             return size
     return 1
+
+
+def _without_simulator_state(observation: dict[str, Any]) -> dict[str, Any]:
+    raw = observation.get("raw", observation)
+    if not isinstance(raw, dict):
+        return observation
+    filtered_raw = {key: value for key, value in raw.items() if key not in {"env_states", "states", "state"}}
+    if "raw" not in observation:
+        return filtered_raw
+    return {**observation, "raw": filtered_raw}
