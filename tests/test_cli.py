@@ -629,6 +629,28 @@ def test_cli_train_task_bc_groups_by_task_and_skips_failures(tmp_path: Path):
     assert not (out_dir / "maniskill_stack_cube.json").exists()
 
 
+def test_cli_train_task_bc_discovers_nested_episode_files(tmp_path: Path):
+    nested = tmp_path / "artifact" / "benchmark_results" / "imported" / "maniskill_pick_cube"
+    nested.mkdir(parents=True)
+    nested.joinpath("episodes.json").write_text(
+        json.dumps(
+            [
+                {
+                    "task_id": "maniskill_pick_cube",
+                    "success": True,
+                    "steps": [{"observation": _observation_with_action_size(2, raw=[0.0, 0.0]), "action": [0.1, 0.2]}],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "task_bc"
+
+    assert main(["train-task-bc", str(tmp_path / "artifact"), "--out-dir", str(out_dir), "--model", "knn"]) == 0
+
+    assert (out_dir / "maniskill_pick_cube.json").exists()
+
+
 def test_cli_train_task_bc_sequence_knn_uses_deployable_observation_features(tmp_path: Path):
     import numpy as np
 

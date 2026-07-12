@@ -492,7 +492,11 @@ def _episode_files(path: Path) -> list[Path]:
     root_episodes = path / "episodes.json"
     if root_episodes.exists():
         return [root_episodes]
-    return sorted(child / "episodes.json" for child in path.iterdir() if (child / "episodes.json").exists())
+    return sorted(
+        candidate
+        for candidate in path.rglob("episodes.json")
+        if "recovery_dataset" not in {part.lower() for part in candidate.parts}
+    )
 
 
 def _flatten_bc_observation(observation: dict[str, Any], feature_dim: int) -> np.ndarray:
